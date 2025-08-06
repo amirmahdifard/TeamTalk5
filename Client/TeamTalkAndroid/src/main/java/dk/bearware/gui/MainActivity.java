@@ -46,7 +46,6 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
-import android.os.Handler;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.os.Vibrator;
@@ -84,6 +83,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
@@ -100,8 +100,11 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Vector;
 
 import dk.bearware.Channel;
@@ -111,6 +114,7 @@ import dk.bearware.RemoteFile;
 import dk.bearware.ServerProperties;
 import dk.bearware.SoundDeviceConstants;
 import dk.bearware.SoundLevel;
+import dk.bearware.Subscription;
 import dk.bearware.TeamTalkBase;
 import dk.bearware.TextMessage;
 import dk.bearware.TextMsgType;
@@ -197,6 +201,7 @@ extends AppCompatActivity
     boolean restarting;
     SensorManager mSensorManager;
     Sensor mSensor;
+    Map<Integer, User> users = new HashMap<>();
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
 
@@ -207,15 +212,19 @@ extends AppCompatActivity
               SOUND_BCASTMSG = 5,
               SOUND_SERVERLOST = 6,
               SOUND_FILESUPDATE = 7,
-              SOUND_VOXON = 8,
-              SOUND_VOXOFF = 9,
-              SOUND_TXREADY = 10,
-              SOUND_TXSTOP = 11,
-              SOUND_USERJOIN = 12,
-              SOUND_USERLEFT = 13,
-              SOUND_USERLOGGEDIN = 14,
-              SOUND_USERLOGGEDOFF = 15,
-              SOUND_CHANMSGSENT = 16;
+              SOUND_VOXENABLE = 8,
+              SOUND_VOXDISABLE = 9,
+              SOUND_VOXON = 10,
+              SOUND_VOXOFF = 11,
+              SOUND_TXREADY = 12,
+              SOUND_TXSTOP = 13,
+              SOUND_USERJOIN = 14,
+              SOUND_USERLEFT = 15,
+              SOUND_USERLOGGEDIN = 16,
+              SOUND_USERLOGGEDOFF = 17,
+              SOUND_INTERCEPTON = 18,
+              SOUND_INTERCEPTOFF = 19,
+              SOUND_CHANMSGSENT = 20;
     
     SparseIntArray sounds = new SparseIntArray();
 
@@ -293,17 +302,17 @@ extends AppCompatActivity
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         UserAccount myuseraccount = new UserAccount();
-        if (ttclient != null) {
-            ttclient.getMyUserAccount(myuseraccount);
-        }
+        getClient().getMyUserAccount(myuseraccount);
 
         boolean uploadRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_UPLOAD_FILES) != UserRight.USERRIGHT_NONE;
         boolean broadcastRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_TEXTMESSAGE_BROADCAST) != UserRight.USERRIGHT_NONE;
         boolean isEditable = curchannel != null;
-        boolean isJoinable = (ttclient != null) && (curchannel != null) && (ttclient.getMyChannelID() != curchannel.nChannelID) && (curchannel.nMaxUsers > 0);
-        boolean isMyChannel = (ttclient != null) && (curchannel != null) && (ttclient.getMyChannelID() == curchannel.nChannelID);
+        boolean isJoinable = curchannel != null && getClient().getMyChannelID() != curchannel.nChannelID && curchannel.nMaxUsers > 0;
+        boolean isLeaveable = getClient().getMyChannelID() > 0;
+        boolean isMyChannel = curchannel != null && getClient().getMyChannelID() == curchannel.nChannelID;
         menu.findItem(R.id.action_edit).setEnabled(isEditable).setVisible(isEditable);
         menu.findItem(R.id.action_join).setEnabled(isJoinable).setVisible(isJoinable);
+        menu.findItem(R.id.action_leave).setEnabled(isLeaveable).setVisible(isLeaveable);
         menu.findItem(R.id.action_upload).setEnabled(uploadRight).setVisible(uploadRight);
         menu.findItem(R.id.action_broadcast).setEnabled(broadcastRight).setVisible(broadcastRight);
         menu.findItem(R.id.action_stream).setEnabled(isMyChannel).setVisible(isMyChannel);
@@ -319,6 +328,10 @@ extends AppCompatActivity
                     joinChannel(curchannel);
             }
             break;
+            case R.id.action_leave : {
+                    leaveChannel();
+            }
+            break;
             case R.id.action_upload : {
                 if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ?
                     requestMediaPermissions() :
@@ -332,15 +345,15 @@ extends AppCompatActivity
                 alert.setMessage(R.string.text_broadcast_message);
                 final EditText input = new EditText(this);
                 input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-                alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> ttclient.doTextMessage(new TextMessage() {{ nMsgType = TextMsgType.MSGTYPE_BROADCAST; szMessage = input.getText().toString(); }}));
+                alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doTextMessage(new TextMessage() {{ nMsgType = TextMsgType.MSGTYPE_BROADCAST; szMessage = input.getText().toString(); }}));
                 alert.setNegativeButton(android.R.string.no, null);
                 alert.setView(input);
                 alert.show();
                 break;
             case R.id.action_stream : {
-                int flags = ttclient.getFlags();
+                int flags = getClient().getFlags();
                 if ((flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO) {
-                    ttclient.stopStreamingMediaFileToChannel();
+                    getClient().stopStreamingMediaFileToChannel();
                 } else {
                     Intent intent = new Intent(MainActivity.this, StreamMediaActivity.class);
                     startActivity(intent);
@@ -356,7 +369,7 @@ extends AppCompatActivity
             case R.id.action_newchannel : {
                 Intent intent = new Intent(MainActivity.this, ChannelPropActivity.class);
 
-                int parent_chan_id = ttclient.getRootChannelID();
+                int parent_chan_id = getClient().getRootChannelID();
                 if(curchannel != null)
                     parent_chan_id = curchannel.nChannelID;
                 intent = intent.putExtra(ChannelPropActivity.EXTRA_PARENTID, parent_chan_id);
@@ -369,12 +382,17 @@ extends AppCompatActivity
                 startActivity(intent);
                 break;
             }
+            case R.id.action_online_users : {
+                Intent intent = new Intent(MainActivity.this, OnlineUsersActivity.class);
+                startActivity(intent);
+                break;
+            }
             case android.R.id.home : {
                 int currentPage = mViewPager.getCurrentItem();
                 Channel parentChannel = ((currentPage == SectionsPagerAdapter.CHANNELS_PAGE)
                                          && (curchannel != null)
                                          ) ?
-                    ttservice.getChannels().get(curchannel.nParentID) :
+                    getService().getChannels().get(curchannel.nParentID) :
                     null;
                 if (currentPage != SectionsPagerAdapter.CHANNELS_PAGE) {
                     mViewPager.setCurrentItem(SectionsPagerAdapter.CHANNELS_PAGE);
@@ -404,9 +422,9 @@ extends AppCompatActivity
 
     CountDownTimer stats_timer = null;
 
+    Object waitService = new Object();
     TeamTalkConnection mConnection;
     TeamTalkService ttservice;
-    TeamTalkBase ttclient;
 
     @Override
     protected void onStart() {
@@ -429,23 +447,23 @@ extends AppCompatActivity
             adjustSoundSystem(prefs);
             if (prefs.getBoolean(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false)) {
                 if (Permissions.BLUETOOTH.request(this))
-                    ttservice.watchBluetoothHeadset();
+                    getService().watchBluetoothHeadset();
             }
-            else ttservice.unwatchBluetoothHeadset();
+            else getService().unwatchBluetoothHeadset();
 
             int mastervol = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, SoundLevel.SOUND_VOLUME_DEFAULT);
             int gain = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_MICROPHONEGAIN, SoundLevel.SOUND_GAIN_DEFAULT);
             int voxlevel = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_VOICEACTIVATION_LEVEL, 5);
-            boolean voxState = ttservice.isVoiceActivationEnabled();
-            boolean txState = ttservice.isVoiceTransmitting();
+            boolean voxState = getService().isVoiceActivationEnabled();
+            boolean txState = getService().isVoiceTransmitting();
 
             // only set volume and gain if tt-instance hasn't already been configured
-            if (ttclient.getSoundOutputVolume() != mastervol)
-                ttclient.setSoundOutputVolume(mastervol);
-            if (ttclient.getSoundInputGainLevel() != gain)
-                ttclient.setSoundInputGainLevel(gain);
-            if (ttclient.getVoiceActivationLevel() != voxlevel)
-                ttclient.setVoiceActivationLevel(voxlevel);
+            if (getClient().getSoundOutputVolume() != mastervol)
+                getClient().setSoundOutputVolume(mastervol);
+            if (getClient().getSoundInputGainLevel() != gain)
+                getClient().setSoundInputGainLevel(gain);
+            if (getClient().getVoiceActivationLevel() != voxlevel)
+                getClient().setVoiceActivationLevel(voxlevel);
 
             adjustMuteButton(findViewById(R.id.speakerBtn));
             adjustVoxState(voxState, voxState ? voxlevel : gain);
@@ -453,11 +471,11 @@ extends AppCompatActivity
 
             final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
             final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
-            masterSeekBar.setProgress(Utils.refVolumeToPercent(ttclient.getSoundOutputVolume()));
-            if (ttservice.isVoiceActivationEnabled()) {
-                micSeekBar.setProgress(ttclient.getVoiceActivationLevel());
+            masterSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundOutputVolume()));
+            if (getService().isVoiceActivationEnabled()) {
+                micSeekBar.setProgress(getClient().getVoiceActivationLevel());
             } else {
-                micSeekBar.setProgress(Utils.refVolumeToPercent(ttclient.getSoundInputGainLevel()));
+                micSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
             }
             TextView volLevel = findViewById(R.id.vollevel_text);
             volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
@@ -500,9 +518,17 @@ extends AppCompatActivity
         if (prefs.getBoolean("files_updated_audio_icon", true)) {
             sounds.put(SOUND_FILESUPDATE, audioIcons.load(getApplicationContext(), R.raw.fileupdate, 1));
         }
+        if (prefs.getBoolean("voiceact_audio_icon", true)) {
+            sounds.put(SOUND_VOXENABLE, audioIcons.load(getApplicationContext(), R.raw.voiceact_enable, 1));
+            sounds.put(SOUND_VOXDISABLE, audioIcons.load(getApplicationContext(), R.raw.voiceact_disable, 1));
+        }
         if (prefs.getBoolean("voiceact_triggered_icon", true)) {
             sounds.put(SOUND_VOXON, audioIcons.load(getApplicationContext(), R.raw.voiceact_on, 1));
             sounds.put(SOUND_VOXOFF, audioIcons.load(getApplicationContext(), R.raw.voiceact_off, 1));
+        }
+        if (prefs.getBoolean("intercept_audio_icon", true)) {
+            sounds.put(SOUND_INTERCEPTON, audioIcons.load(getApplicationContext(), R.raw.intercept, 1));
+            sounds.put(SOUND_INTERCEPTOFF, audioIcons.load(getApplicationContext(), R.raw.interceptend, 1));
         }
         if (prefs.getBoolean("transmitready_icon", true)) {
             sounds.put(SOUND_TXREADY, audioIcons.load(getApplicationContext(), R.raw.txqueue_start, 1));
@@ -548,8 +574,8 @@ extends AppCompatActivity
 
         if (mConnection.isBound()) {
             SharedPreferences.Editor editor = prefs.edit();
-            editor.putInt(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, ttclient.getSoundOutputVolume());
-            editor.putInt(Preferences.PREF_SOUNDSYSTEM_VOICEACTIVATION_LEVEL, ttclient.getVoiceActivationLevel());
+            editor.putInt(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, getClient().getSoundOutputVolume());
+            editor.putInt(Preferences.PREF_SOUNDSYSTEM_VOICEACTIVATION_LEVEL, getClient().getVoiceActivationLevel());
             editor.apply();
         }
 
@@ -569,10 +595,12 @@ extends AppCompatActivity
             // Unbind from the service
             if (mConnection.isBound()) {
                 Log.d(TAG, "Unbinding TeamTalk service");
-                onServiceDisconnected(ttservice);
-                ttservice.disablePhoneCallReaction();
-                ttservice.unwatchBluetoothHeadset();
-                ttservice.resetState();
+                if (ttservice != null) {
+                    ttservice.disablePhoneCallReaction();
+                    ttservice.unwatchBluetoothHeadset();
+                    ttservice.resetState();
+                    onServiceDisconnected(ttservice);
+                }
                 unbindService(mConnection);
                 mConnection.setBound(false);
             }
@@ -589,7 +617,9 @@ extends AppCompatActivity
         // Unbind from the service
         if(mConnection.isBound()) {
             Log.d(TAG, "Unbinding TeamTalk service");
-            onServiceDisconnected(ttservice);
+            // no double unregister on ttservice (see onStop())
+            if (ttservice != null)
+                onServiceDisconnected(ttservice);
             unbindService(mConnection);
             mConnection.setBound(false);
         }
@@ -621,7 +651,7 @@ extends AppCompatActivity
         String remoteName = filesAdapter.getRemoteName(path);
         if (remoteName != null) {
             Toast.makeText(this, getString(R.string.remote_file_exists, remoteName), Toast.LENGTH_LONG).show();
-        } else if (ttclient.doSendFile(curchannel.nChannelID, path) <= 0) {
+        } else if (getClient().doSendFile(curchannel.nChannelID, path) <= 0) {
             Toast.makeText(this, getString(R.string.upload_failed, path), Toast.LENGTH_LONG).show();
         } else {
             Toast.makeText(this, R.string.upload_started, Toast.LENGTH_SHORT).show();
@@ -684,17 +714,17 @@ extends AppCompatActivity
     public void onSensorChanged(SensorEvent event) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
         boolean proximity_sensor = prefs.getBoolean("proximity_sensor_checkbox", false);
-        if (proximity_sensor && (mConnection != null) && mConnection.isBound() && !ttservice.isInPhoneCall()) {
+        if (proximity_sensor && (mConnection != null) && mConnection.isBound() && !getService().isInPhoneCall()) {
             if (event.values[0] == 0) {
                 proximityWakeLock.acquire();
                 audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
                 audioManager.setSpeakerphoneOn(false);
-                ttservice.enableVoiceTransmission(true);
+                getService().enableVoiceTransmission(true);
             } else {
                 proximityWakeLock.release();
                 adjustSoundSystem(prefs);
-                if (ttservice.isVoiceTransmissionEnabled())
-                    ttservice.enableVoiceTransmission(false);
+                if (getService().isVoiceTransmissionEnabled())
+                    getService().enableVoiceTransmission(false);
             }
         }
     }
@@ -810,12 +840,19 @@ extends AppCompatActivity
         startActivityForResult(intent.putExtra(ChannelPropActivity.EXTRA_CHANNELID, channel.nChannelID), REQUEST_EDITCHANNEL);
     }
 
+    private void leaveChannel() {
+        getClient().doLeaveChannel();
+        accessibilityAssistant.lockEvents();
+        channelsAdapter.notifyDataSetChanged();
+        accessibilityAssistant.unlockEvents();
+    }
+
     private void joinChannelUnsafe(Channel channel, String passwd) {
-        int cmdid = ttclient.doJoinChannelByID(channel.nChannelID, passwd);
+        int cmdid = getClient().doJoinChannelByID(channel.nChannelID, passwd);
         if(cmdid>0) {
             activecmds.put(cmdid, CmdComplete.CMD_COMPLETE_JOIN);
             channel.szPassword = passwd;
-            ttservice.setJoinChannel(channel);
+            getService().setJoinChannel(channel);
         }
         else {
             Toast.makeText(this, R.string.text_con_cmderr, Toast.LENGTH_LONG).show();
@@ -883,16 +920,35 @@ extends AppCompatActivity
         adjustVoiceGain();
     }
 
+    private void subscriptionChange(User user) {
+        User olduser = this.users.get(user.nUserID);
+
+        // text-to-speech on subscription changes
+        if (olduser != null && this.ttsWrapper != null) {
+            Utils.ttsSubscriptionChanged(getBaseContext(), olduser, user).ifPresent((text -> ttsWrapper.speak(text)));
+        }
+
+        // play sound if intercept subscription is toggled
+        if (olduser != null && (this.sounds.get(SOUND_INTERCEPTON) != 0 && this.sounds.get(SOUND_INTERCEPTOFF) != 0)) {
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_USER_MSG).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_CHANNEL_MSG).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_VOICE).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_VIDEOCAPTURE).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_DESKTOP).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+            Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_MEDIAFILE).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
+        }
+    }
+
     private boolean isVisibleChannel(int chanid) {
         if (curchannel != null) {
             if (curchannel.nParentID == chanid)
                 return true;
-            Channel channel = ttservice.getChannels().get(chanid);
+            Channel channel = getService().getChannels().get(chanid);
             if (channel != null)
                 return curchannel.nChannelID == channel.nParentID;
         }
         else {
-            return chanid == ttclient.getRootChannelID();
+            return chanid == getClient().getRootChannelID();
         }
         return false;
     }
@@ -964,12 +1020,12 @@ private EditText newmsg;
 
             MyTextMessage textmsg = new MyTextMessage();
             textmsg.nMsgType = TextMsgType.MSGTYPE_CHANNEL;
-            textmsg.nChannelID = mainActivity.ttclient.getMyChannelID();
+            textmsg.nChannelID = mainActivity.getClient().getMyChannelID();
             textmsg.szMessage = text;
 
             int cmdid = 0;
             for (MyTextMessage m : textmsg.split()) {
-                cmdid = mainActivity.ttclient.doTextMessage(m);
+                cmdid = mainActivity.getClient().doTextMessage(m);
             }
 
             if (cmdid > 0) {
@@ -1066,13 +1122,13 @@ private EditText newmsg;
             if(curchannel != null) {
                 chanid = curchannel.nChannelID;
 
-                subchannels = Utils.getSubChannels(chanid, ttservice.getChannels());
-                stickychannels = Utils.getStickyChannels(chanid, ttservice.getChannels());
-                currentusers = Utils.getUsers(chanid, ttservice.getUsers());
+                subchannels = Utils.getSubChannels(chanid, getService().getChannels());
+                stickychannels = Utils.getStickyChannels(chanid, getService().getChannels());
+                currentusers = Utils.getUsers(chanid, getService().getUsers());
             }
             else {
-                chanid = ttclient.getRootChannelID();
-                Channel root = ttservice.getChannels().get(chanid);
+                chanid = getClient().getRootChannelID();
+                Channel root = getService().getChannels().get(chanid);
                 if(root != null)
                     subchannels.add(root);
             }
@@ -1082,12 +1138,14 @@ private EditText newmsg;
             Collections.sort(stickychannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
 
             Collections.sort(currentusers, (u1, u2) -> {
-                if (((u1.uUserState & UserState.USERSTATE_VOICE) != 0) &&
-                    ((u2.uUserState & UserState.USERSTATE_VOICE) == 0))
-                    return -1;
-                else if (((u1.uUserState & UserState.USERSTATE_VOICE) == 0) &&
-                         ((u2.uUserState & UserState.USERSTATE_VOICE) != 0))
-                    return 1;
+                if (PreferenceManager.getDefaultSharedPreferences(getBaseContext()).getBoolean("movetalk_checkbox", true)) {
+                    if (((u1.uUserState & UserState.USERSTATE_VOICE) != 0) &&
+                        ((u2.uUserState & UserState.USERSTATE_VOICE) == 0))
+                        return -1;
+                    else if (((u1.uUserState & UserState.USERSTATE_VOICE) == 0) &&
+                             ((u2.uUserState & UserState.USERSTATE_VOICE) != 0))
+                        return 1;
+                }
 
                 String name1 = Utils.getDisplayName(getBaseContext(), u1);
                 String name2 = Utils.getDisplayName(getBaseContext(), u2);
@@ -1125,7 +1183,7 @@ private EditText newmsg;
 
             if ((curchannel != null) && (curchannel.nParentID > 0)) {
                 if(position == 0) {
-                    Channel parent = ttservice.getChannels().get(curchannel.nParentID);
+                    Channel parent = getService().getChannels().get(curchannel.nParentID);
 
                     if(parent != null)
                         return parent;
@@ -1214,7 +1272,7 @@ private EditText newmsg;
                         if(channel.nParentID == 0) {
                             // show server name as channel name for root channel
                             ServerProperties srvprop = new ServerProperties();
-                            ttclient.getServerProperties(srvprop);
+                            getClient().getServerProperties(srvprop);
                             name.setText(srvprop.szServerName);
                         }
                         else {
@@ -1229,10 +1287,10 @@ private EditText newmsg;
                         };
                         join.setOnClickListener(listener);
                         join.setAccessibilityDelegate(accessibilityAssistant);
-                        join.setEnabled(channel.nChannelID != ttclient.getMyChannelID());
+                        join.setEnabled(channel.nChannelID != getClient().getMyChannelID());
 
                         if (channel.nMaxUsers > 0) {
-                            int population = Utils.getUsers(channel.nChannelID, ttservice.getUsers()).size();
+                            int population = Utils.getUsers(channel.nChannelID, getService().getUsers()).size();
                             ((TextView)convertView.findViewById(R.id.population)).setText((population > 0) ? String.format("(%d)", population) : "");
                         }
 
@@ -1261,6 +1319,8 @@ private EditText newmsg;
                 nickname.setText(name);
                 status.setText(user.szStatusMsg);
                 
+                boolean selected = userIDS.contains(user.nUserID);
+                boolean isOperator = getClient().isChannelOperator(user.nUserID, user.nChannelID);
                 boolean talking = (user.uUserState & UserState.USERSTATE_VOICE) != 0;
                 boolean female = (user.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
                 boolean neutral = (user.nStatusMode & TeamTalkConstants.STATUSMODE_NEUTRAL) != 0;
@@ -1268,38 +1328,31 @@ private EditText newmsg;
                 boolean away =  (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
                 int icon_resource;
                 
-                if(user.nUserID == ttservice.getTTInstance().getMyUserID()) {
-                    talking = ttservice.isVoiceTransmitting();
+                if(user.nUserID == getService().getTTInstance().getMyUserID()) {
+                    talking = getService().isVoiceTransmitting();
                 }
-                if(talking) {
-                    if(female) {
+
+                String move = selected ? getString(R.string.user_state_selected) : "";
+                String speaking = talking ? getString(R.string.user_state_now_speaking, name) : name;
+                String gender = female ? " 👩 " : neutral ? " 🧑 " : " 👨 ";
+                String op = isOperator ? getString(R.string.user_state_operator) : "";
+                nickname.setContentDescription(move + speaking + gender + op);
+
+                if (talking) {
+                    if (female) {
                         icon_resource = R.drawable.woman_green;
-                        nickname.setContentDescription(getString(R.string.user_state_now_speaking, name) + " 👩");
+                    } else {
+                        icon_resource = R.drawable.man_green; // male or neutral
                     }
-                    else if(male) {
-                        icon_resource = R.drawable.man_green;
-                        nickname.setContentDescription(getString(R.string.user_state_now_speaking, name) + " 👨");
-                    }
-                    else {
-                        icon_resource = R.drawable.man_green;
-                        nickname.setContentDescription(getString(R.string.user_state_now_speaking, name));
-                    }
-                }
-                else {
-                    if(female) {
-                        icon_resource = away? R.drawable.woman_orange : R.drawable.woman_blue;
-                        nickname.setContentDescription(name + " 👩");
-                    }
-                    else if(male) {
-                        icon_resource = away? R.drawable.man_orange : R.drawable.man_blue;
-                        nickname.setContentDescription(name + " 👨");
-                    }
-                    else {
-                        icon_resource = away? R.drawable.man_orange : R.drawable.man_blue;
-                        nickname.setContentDescription(name);
+                } else {
+                    if (female) {
+                        icon_resource = away ? R.drawable.woman_orange : R.drawable.woman_blue;
+                    } else {
+                        icon_resource = away ? R.drawable.man_orange : R.drawable.man_blue; // male or neutral
                     }
                 }
-                status.setContentDescription(away ? getString(R.string.user_state_away) : null);
+
+                status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
 
                 usericon.setImageResource(icon_resource);
                 usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -1333,13 +1386,13 @@ private EditText newmsg;
                 
                 public void onTick(long millisUntilFinished) {
                 
-                    if (ttclient == null || accessibilityAssistant.isUiUpdateDiscouraged())
+                    if (accessibilityAssistant.isUiUpdateDiscouraged())
                         return;
                     filesAdapter.performPendingUpdate();
 
                     String con = getString(R.string.stat_offline);
                     int con_color = Color.RED;
-                    int flags = ttclient.getFlags(); 
+                    int flags = getClient().getFlags();
                     if ((flags & ClientFlag.CLIENT_CONNECTING) == ClientFlag.CLIENT_CONNECTING) {
                         con = getString(R.string.stat_connecting);
                     }
@@ -1359,7 +1412,7 @@ private EditText newmsg;
                     connection.setTextColor(con_color);
 
                     ClientStatistics stats = new ClientStatistics();
-                    if(!ttclient.getClientStatistics(stats))
+                    if(!getClient().getClientStatistics(stats))
                         return;
                     
                     if(prev_stats == null)
@@ -1423,14 +1476,14 @@ private EditText newmsg;
         if (item instanceof User) {
             selectedUser = (User) item;
             UserAccount myuseraccount = new UserAccount();
-            ttclient.getMyUserAccount(myuseraccount);
+            getClient().getMyUserAccount(myuseraccount);
 
             boolean banRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_BAN_USERS) != UserRight.USERRIGHT_NONE;
             boolean moveRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_MOVE_USERS) != UserRight.USERRIGHT_NONE;
             boolean kickRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_KICK_USERS) != UserRight.USERRIGHT_NONE;
             // operator of a channel can also kick users
-            int myuserid = ttclient.getMyUserID();
-            boolean operatorRight = ttclient.isChannelOperator(myuserid, selectedUser.nChannelID);
+            int myuserid = getClient().getMyUserID();
+            boolean operatorRight = getClient().isChannelOperator(myuserid, selectedUser.nChannelID);
 
             PopupMenu userActions = new PopupMenu(this, v);
             userActions.setOnMenuItemClickListener(this);
@@ -1439,7 +1492,7 @@ private EditText newmsg;
             userActions.getMenu().findItem(R.id.action_kicksrv).setEnabled(kickRight).setVisible(kickRight);
             userActions.getMenu().findItem(R.id.action_banchan).setEnabled(banRight | operatorRight).setVisible(banRight | operatorRight);
             userActions.getMenu().findItem(R.id.action_bansrv).setEnabled(banRight).setVisible(banRight);
-            userActions.getMenu().findItem(R.id.action_makeop).setTitle(ttclient.isChannelOperator(selectedUser.nUserID , selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
+            userActions.getMenu().findItem(R.id.action_makeop).setTitle(getClient().isChannelOperator(selectedUser.nUserID , selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
             userActions.getMenu().findItem(R.id.action_select).setTitle(userIDS.contains(selectedUser.nUserID) ? R.string.action_deselect : R.string.action_select);
             userActions.getMenu().findItem(R.id.action_select).setEnabled(moveRight).setVisible(moveRight);
             userActions.show();
@@ -1448,7 +1501,7 @@ private EditText newmsg;
         if (item instanceof Channel) {
             selectedChannel = (Channel) item;
             UserAccount myuseraccount = new UserAccount();
-            ttclient.getMyUserAccount(myuseraccount);
+            getClient().getMyUserAccount(myuseraccount);
 
             boolean moveRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_MOVE_USERS) != UserRight.USERRIGHT_NONE;
             PopupMenu channelActions = new PopupMenu(this, v);
@@ -1468,8 +1521,8 @@ private EditText newmsg;
         case R.id.action_banchan:
             alert.setMessage(getString(R.string.ban_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
-                ttclient.doBanUser(selectedUser.nUserID, selectedUser.nChannelID);
-                ttclient.doKickUser(selectedUser.nUserID, selectedUser.nChannelID);
+                getClient().doBanUser(selectedUser.nUserID, selectedUser.nChannelID);
+                getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID);
             });
 
             alert.setNegativeButton(android.R.string.no, null);
@@ -1478,8 +1531,8 @@ private EditText newmsg;
         case R.id.action_bansrv:
             alert.setMessage(getString(R.string.ban_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
-                ttclient.doBanUser(selectedUser.nUserID, 0);
-                ttclient.doKickUser(selectedUser.nUserID, 0);
+                getClient().doBanUser(selectedUser.nUserID, 0);
+                getClient().doKickUser(selectedUser.nUserID, 0);
             });
 
             alert.setNegativeButton(android.R.string.no, null);
@@ -1501,37 +1554,37 @@ private EditText newmsg;
         break;
         case R.id.action_kickchan:
             alert.setMessage(getString(R.string.kick_confirmation, selectedUser.szNickname));
-            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> ttclient.doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
+            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
 
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
             break;
         case R.id.action_kicksrv:
             alert.setMessage(getString(R.string.kick_confirmation, selectedUser.szNickname));
-            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> ttclient.doKickUser(selectedUser.nUserID, 0));
+            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doKickUser(selectedUser.nUserID, 0));
 
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
             break;
             case R.id.action_makeop:
                 UserAccount myuseraccount = new UserAccount();
-                ttclient.getMyUserAccount(myuseraccount);
+                getClient().getMyUserAccount(myuseraccount);
                 if ((myuseraccount.uUserRights & UserRight.USERRIGHT_OPERATOR_ENABLE) != UserRight.USERRIGHT_NONE) {
-                    ttclient.doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, ttclient.isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true);
+                    getClient().doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true);
                     break;
                 }
-                alert.setTitle(ttclient.isChannelOperator(selectedUser.nUserID , selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
+                alert.setTitle(getClient().isChannelOperator(selectedUser.nUserID , selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
                 alert.setMessage(R.string.text_operator_password);
                 final EditText input = new EditText(this);
                 input.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_CLASS_TEXT);
-                alert.setPositiveButton(android.R.string.yes, ((dialog, whichButton) -> ttclient.doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), ttclient.isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true)));
+                alert.setPositiveButton(android.R.string.yes, ((dialog, whichButton) -> getClient().doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true)));
                 alert.setNegativeButton(android.R.string.no, null);
                 alert.setView(input);
                 alert.show();
                 break;
         case R.id.action_move:
             for (Integer userID : userIDS) {
-                ttclient.doMoveUser(userID, selectedChannel.nChannelID);
+                getClient().doMoveUser(userID, selectedChannel.nChannelID);
             }
             userIDS.clear();
             break;
@@ -1541,11 +1594,14 @@ private EditText newmsg;
     } else {
         userIDS.add(selectedUser.nUserID);
     }
+    accessibilityAssistant.lockEvents();
+    channelsAdapter.notifyDataSetChanged();
+    accessibilityAssistant.unlockEvents();
     break;
         case R.id.action_remove: {
             alert.setMessage(getString(R.string.channel_remove_confirmation, selectedChannel.szName));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
-                if (ttclient.doRemoveChannel(selectedChannel.nChannelID) <= 0)
+                if (getClient().doRemoveChannel(selectedChannel.nChannelID) <= 0)
                     Toast.makeText(MainActivity.this,
                                    getString(R.string.err_channel_remove,
                                              selectedChannel.szName),
@@ -1575,7 +1631,7 @@ private EditText newmsg;
     }
 
     private void adjustMuteButton(ImageButton btn) {
-        if (ttservice.getCurrentMuteState()) {
+        if (getService().getCurrentMuteState()) {
             btn.setImageResource(R.drawable.mute_blue);
             btn.setContentDescription(getString(R.string.speaker_unmute));
         }
@@ -1594,7 +1650,7 @@ private EditText newmsg;
             mikeLevel.setContentDescription(getString(R.string.vox_level_description, mikeLevel.getText()));
             voxSwitch.setImageResource(R.drawable.microphone);
             voxSwitch.setContentDescription(getString(R.string.voice_activation_off));
-            ((SeekBar) findViewById(R.id.mic_gainSeekBar)).setProgress(ttclient.getVoiceActivationLevel());
+            ((SeekBar) findViewById(R.id.mic_gainSeekBar)).setProgress(getClient().getVoiceActivationLevel());
             findViewById(R.id.mic_gainSeekBar).setContentDescription(getString(R.string.voxlevel));
         }
         else {
@@ -1602,7 +1658,7 @@ private EditText newmsg;
             mikeLevel.setContentDescription(getString(R.string.mic_gain_description, mikeLevel.getText()));
             voxSwitch.setImageResource(R.drawable.mike_green);
             voxSwitch.setContentDescription(getString(R.string.voice_activation_on));
-            ((SeekBar) findViewById(R.id.mic_gainSeekBar)).setProgress(Utils.refVolumeToPercent(ttclient.getSoundInputGainLevel()));
+            ((SeekBar) findViewById(R.id.mic_gainSeekBar)).setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
             findViewById(R.id.mic_gainSeekBar).setContentDescription(getString(R.string.micgain));
         }
     }
@@ -1613,7 +1669,7 @@ private EditText newmsg;
         findViewById(R.id.transmit_voice).setBackgroundColor(txEnabled ? Color.GREEN : Color.RED);
         findViewById(R.id.transmit_voice).setContentDescription(txEnabled ? getString(R.string.tx_on) : getString(R.string.tx_off));
 
-        if ((curchannel != null) && (ttclient.getMyChannelID() == curchannel.nChannelID))
+        if ((curchannel != null) && (getClient().getMyChannelID() == curchannel.nChannelID))
             channelsAdapter.notifyDataSetChanged();
 
         accessibilityAssistant.unlockEvents();
@@ -1623,7 +1679,7 @@ private EditText newmsg;
 
         // if channel has audio configuration enabled then we should switch to AGC
 
-        boolean showMicSeekBar = mychannel == null || !mychannel.audiocfg.bEnableAGC || ttservice == null || ttservice.isVoiceActivationEnabled();
+        boolean showMicSeekBar = mychannel == null || !mychannel.audiocfg.bEnableAGC ||  getService().isVoiceActivationEnabled();
 
         findViewById(R.id.mic_gainSeekBar).setVisibility(showMicSeekBar ? View.VISIBLE : View.GONE);
     }
@@ -1659,9 +1715,9 @@ private EditText newmsg;
                         //Log.i(TAG, "TX is now: " + tx + " diff " + (System.currentTimeMillis() - tx_down_start));
                     }
 
-                    if (ttservice.isVoiceActivationEnabled())
-                        ttservice.enableVoiceActivation(false);
-                    ttservice.enableVoiceTransmission(tx);
+                    if (getService().isVoiceActivationEnabled())
+                        getService().enableVoiceActivation(false);
+                    getService().enableVoiceTransmission(tx);
                 }
                 tx_state = tx;
                 return true;
@@ -1677,9 +1733,9 @@ private EditText newmsg;
                     tx_state = false;
                     tx_down_start = System.currentTimeMillis();
                 }
-                if (ttservice.isVoiceActivationEnabled())
-                    ttservice.enableVoiceActivation(false);
-                ttservice.enableVoiceTransmission(tx_state);
+                if (getService().isVoiceActivationEnabled())
+                    getService().enableVoiceActivation(false);
+                getService().enableVoiceTransmission(tx_state);
             }
         };
 
@@ -1697,21 +1753,21 @@ private EditText newmsg;
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
                 if (seekBar == masterSeekBar) {
-                    if (ttservice.isMute()) {
-                        ttservice.setMute(false);
+                    if (getService().isMute()) {
+                        getService().setMute(false);
                         ImageButton speakerBtn = findViewById(R.id.speakerBtn);
                         adjustMuteButton(speakerBtn);
                     }
-                    ttclient.setSoundOutputVolume(Utils.refVolume(progress));
+                    getClient().setSoundOutputVolume(Utils.refVolume(progress));
                     volLevel.setText(progress + "%");
                     volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
             }     else if (seekBar == micSeekBar) {
-                    if (ttservice.isVoiceActivationEnabled()) {
-                        ttclient.setVoiceActivationLevel(progress);
+                    if (getService().isVoiceActivationEnabled()) {
+                        getClient().setVoiceActivationLevel(progress);
                         mikeLevel.setText(progress + "%");
                         mikeLevel.setContentDescription(getString(R.string.vox_level_description, mikeLevel.getText()));
                     } else {
-                        ttclient.setSoundInputGainLevel(Utils.refGain(progress));
+                        getClient().setSoundInputGainLevel(Utils.refGain(progress));
                         SharedPreferences.Editor editor = prefs.edit();
                         editor.putInt(Preferences.PREF_SOUNDSYSTEM_MICROPHONEGAIN, Utils.refGain(progress));
                         editor.apply();
@@ -1740,12 +1796,12 @@ private EditText newmsg;
         ImageButton speakerBtn = findViewById(R.id.speakerBtn);
         speakerBtn.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
-                ttservice.setMute(!ttservice.isMute());
+                getService().setMute(!getService().isMute());
                 adjustMuteButton((ImageButton) v);
 
-                int level = ttservice.isMute() ?
+                int level = getService().isMute() ?
                     0 :
-                    Utils.refVolumeToPercent(ttclient.getSoundOutputVolume());
+                    Utils.refVolumeToPercent(getClient().getSoundOutputVolume());
                 volLevel.setText(level + "%");
                 volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
             }
@@ -1754,9 +1810,9 @@ private EditText newmsg;
         ImageButton voxSwitch = findViewById(R.id.voxSwitch);
         voxSwitch.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
-                if (ttservice.isVoiceTransmissionEnabled())
-                    ttservice.enableVoiceTransmission(false);
-                ttservice.enableVoiceActivation(!ttservice.isVoiceActivationEnabled());
+                if (getService().isVoiceTransmissionEnabled())
+                    getService().enableVoiceTransmission(false);
+                getService().enableVoiceActivation(!getService().isVoiceActivationEnabled());
 
                 adjustVoiceGain();
             }
@@ -1765,22 +1821,27 @@ private EditText newmsg;
 
     @Override
     public void onServiceConnected(TeamTalkService service) {
-        ttservice = service;
-        ttclient = ttservice.getTTInstance();
 
-        int mychanid = ttclient.getMyChannelID();
-        if (mychanid > 0) {
-            setCurrentChannel(ttservice.getChannels().get(mychanid));
+        synchronized (waitService) {
+            ttservice = service;
+            waitService.notifyAll();
         }
 
-        setMyChannel(ttservice.getChannels().get(mychanid));
+        this.users = new HashMap<>(service.getUsers());
+
+        int mychanid = getClient().getMyChannelID();
+        if (mychanid > 0) {
+            setCurrentChannel(service.getChannels().get(mychanid));
+        }
+
+        setMyChannel(service.getChannels().get(mychanid));
 
         mSectionsPagerAdapter.onPageSelected(mViewPager.getCurrentItem());
 
         channelsAdapter.notifyDataSetChanged();
 
-        textmsgAdapter.setTextMessages(ttservice.getChatLogTextMsgs());
-        textmsgAdapter.setMyUserID(ttclient.getMyUserID());
+        textmsgAdapter.setTextMessages(service.getChatLogTextMsgs());
+        textmsgAdapter.setMyUserID(getClient().getMyUserID());
         textmsgAdapter.notifyDataSetChanged();
 
         mediaAdapter.setTeamTalkService(service);
@@ -1792,72 +1853,72 @@ private EditText newmsg;
         int outsndid = SoundDeviceConstants.TT_SOUNDDEVICE_ID_OPENSLES_DEFAULT;
         // outsndid |= SoundDeviceConstants.TT_SOUNDDEVICE_ID_SHARED_FLAG;
 
-        int flags = ttclient.getFlags();
+        int flags = getClient().getFlags();
         if (((flags & ClientFlag.CLIENT_SNDOUTPUT_READY) == 0) &&
-            !ttclient.initSoundOutputDevice(outsndid))
+            !getClient().initSoundOutputDevice(outsndid))
             Toast.makeText(this, R.string.err_init_sound_output, Toast.LENGTH_LONG).show();
 
         if (!restarting) {
-            ttservice.setMute(false);
-            ttservice.enableVoiceTransmission(false);
-            ttservice.enableVoiceActivation(false);
+            service.setMute(false);
+            service.enableVoiceTransmission(false);
+            service.enableVoiceActivation(false);
             if (Permissions.READ_PHONE_STATE.request(this))
-                ttservice.enablePhoneCallReaction();
+                service.enablePhoneCallReaction();
         }
 
-        ttservice.getEventHandler().registerOnConnectionLostListener(this, true);
-        ttservice.getEventHandler().registerOnCmdProcessing(this, true);
-        ttservice.getEventHandler().registerOnCmdMyselfLoggedIn(this, true);
-        ttservice.getEventHandler().registerOnCmdMyselfLoggedOut(this, true);
-        ttservice.getEventHandler().registerOnCmdMyselfKickedFromChannel(this, true);
-        ttservice.getEventHandler().registerOnCmdUserLoggedIn(this, true);
-        ttservice.getEventHandler().registerOnCmdUserLoggedOut(this, true);
-        ttservice.getEventHandler().registerOnCmdUserUpdate(this, true);
-        ttservice.getEventHandler().registerOnCmdUserJoinedChannel(this, true);
-        ttservice.getEventHandler().registerOnCmdUserLeftChannel(this, true);
-        ttservice.getEventHandler().registerOnCmdUserTextMessage(this, true);
-        ttservice.getEventHandler().registerOnCmdChannelNew(this, true);
-        ttservice.getEventHandler().registerOnCmdChannelUpdate(this, true);
-        ttservice.getEventHandler().registerOnCmdChannelRemove(this, true);
-        ttservice.getEventHandler().registerOnCmdFileNew(this, true);
-        ttservice.getEventHandler().registerOnCmdFileRemove(this, true);
-        ttservice.getEventHandler().registerOnUserStateChange(this, true);
-        ttservice.getEventHandler().registerOnVoiceActivation(this, true);
+        service.getEventHandler().registerOnConnectionLostListener(this, true);
+        service.getEventHandler().registerOnCmdProcessing(this, true);
+        service.getEventHandler().registerOnCmdMyselfLoggedIn(this, true);
+        service.getEventHandler().registerOnCmdMyselfLoggedOut(this, true);
+        service.getEventHandler().registerOnCmdMyselfKickedFromChannel(this, true);
+        service.getEventHandler().registerOnCmdUserLoggedIn(this, true);
+        service.getEventHandler().registerOnCmdUserLoggedOut(this, true);
+        service.getEventHandler().registerOnCmdUserUpdate(this, true);
+        service.getEventHandler().registerOnCmdUserJoinedChannel(this, true);
+        service.getEventHandler().registerOnCmdUserLeftChannel(this, true);
+        service.getEventHandler().registerOnCmdUserTextMessage(this, true);
+        service.getEventHandler().registerOnCmdChannelNew(this, true);
+        service.getEventHandler().registerOnCmdChannelUpdate(this, true);
+        service.getEventHandler().registerOnCmdChannelRemove(this, true);
+        service.getEventHandler().registerOnCmdFileNew(this, true);
+        service.getEventHandler().registerOnCmdFileRemove(this, true);
+        service.getEventHandler().registerOnUserStateChange(this, true);
+        service.getEventHandler().registerOnVoiceActivation(this, true);
 
-        ttservice.setOnVoiceTransmissionToggleListener(this);
+        service.setOnVoiceTransmissionToggleListener(this);
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
         adjustSoundSystem(prefs);
 
         if (prefs.getBoolean(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false)
             && Permissions.BLUETOOTH.request(this))
-            ttservice.watchBluetoothHeadset();
+            service.watchBluetoothHeadset();
 
         if (Permissions.WAKE_LOCK.request(this))
             wakeLock.acquire();
 
         int mastervol = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, SoundLevel.SOUND_VOLUME_DEFAULT);
         int voxlevel = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_VOICEACTIVATION_LEVEL, 5);
-        boolean voxState = ttservice.isVoiceActivationEnabled();
-        boolean txState = ttservice.isVoiceTransmitting();
+        boolean voxState = service.isVoiceActivationEnabled();
+        boolean txState = service.isVoiceTransmitting();
 
         // only set volume and gain if tt-instance hasn't already been configured
-        if (ttclient.getSoundOutputVolume() != mastervol)
-            ttclient.setSoundOutputVolume(mastervol);
-        if (ttclient.getVoiceActivationLevel() != voxlevel)
-            ttclient.setVoiceActivationLevel(voxlevel);
+        if (getClient().getSoundOutputVolume() != mastervol)
+            getClient().setSoundOutputVolume(mastervol);
+        if (getClient().getVoiceActivationLevel() != voxlevel)
+            getClient().setVoiceActivationLevel(voxlevel);
 
         adjustMuteButton(findViewById(R.id.speakerBtn));
-        adjustVoxState(voxState, voxState ? voxlevel : ttclient.getSoundInputGainLevel());
+        adjustVoxState(voxState, voxState ? voxlevel : getClient().getSoundInputGainLevel());
         adjustTxState(txState);
 
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
-        masterSeekBar.setProgress(Utils.refVolumeToPercent(ttclient.getSoundOutputVolume()));
-        if (ttservice.isVoiceActivationEnabled()) {
-            micSeekBar.setProgress(ttclient.getVoiceActivationLevel());
+        masterSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundOutputVolume()));
+        if (service.isVoiceActivationEnabled()) {
+            micSeekBar.setProgress(getClient().getVoiceActivationLevel());
         } else {
-            micSeekBar.setProgress(Utils.refVolumeToPercent(ttclient.getSoundInputGainLevel()));
+            micSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
         }
         TextView volLevel = findViewById(R.id.vollevel_text);
         volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
@@ -1870,10 +1931,30 @@ private EditText newmsg;
             wakeLock.release();
         service.setOnVoiceTransmissionToggleListener(null);
 
-        ttservice.getEventHandler().unregisterListener(this);
+        service.getEventHandler().unregisterListener(this);
 
         filesAdapter.setTeamTalkService(null);
         mediaAdapter.clearTeamTalkService(service);
+        synchronized (waitService) {
+            ttservice = null;
+        }
+    }
+
+    TeamTalkService getService() {
+        synchronized (waitService) {
+            if (this.ttservice == null) {
+                try {
+                    waitService.wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return this.ttservice;
+    }
+
+    TeamTalkBase getClient() {
+        return getService().getTTInstance();
     }
 
     @Override
@@ -1901,11 +1982,11 @@ private EditText newmsg;
                 break;
             case READ_PHONE_STATE:
                 if ((mConnection != null) && mConnection.isBound())
-                    ttservice.enablePhoneCallReaction();
+                    getService().enablePhoneCallReaction();
                 break;
             case BLUETOOTH:
                 if ((mConnection != null) && mConnection.isBound())
-                    ttservice.watchBluetoothHeadset();
+                    getService().watchBluetoothHeadset();
                 break;
             default:
                 break;
@@ -1947,9 +2028,12 @@ private EditText newmsg;
 
     @Override
     public void onCmdUserLoggedIn(User user) {
+        users.put(user.nUserID, user);
+
         accessibilityAssistant.lockEvents();
         textmsgAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
+
         if (sounds.get(SOUND_USERLOGGEDIN) != 0)
             audioIcons.play(sounds.get(SOUND_USERLOGGEDIN), 1.0f, 1.0f, 0, 0, 1.0f);
         if (ttsWrapper != null && PreferenceManager.getDefaultSharedPreferences(getBaseContext()).getBoolean("server_login_checkbox", false)) {
@@ -1960,9 +2044,12 @@ private EditText newmsg;
 
     @Override
     public void onCmdUserLoggedOut(User user) {
+        users.remove(user.nUserID);
+
         accessibilityAssistant.lockEvents();
         textmsgAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
+
         if (sounds.get(SOUND_USERLOGGEDOFF) != 0)
             audioIcons.play(sounds.get(SOUND_USERLOGGEDOFF), 1.0f, 1.0f, 0, 0, 1.0f);
         if (ttsWrapper != null && PreferenceManager.getDefaultSharedPreferences(getBaseContext()).getBoolean("server_logout_checkbox", false)) {
@@ -1978,14 +2065,19 @@ private EditText newmsg;
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
         }
+
+        subscriptionChange(user);
+
+        users.put(user.nUserID, user);
     }
 
     @Override
     public void onCmdUserJoinedChannel(User user) {
+        users.put(user.nUserID, user);
         
-        if(user.nUserID == ttclient.getMyUserID()) {
+        if(user.nUserID == getClient().getMyUserID()) {
             //myself joined channel
-            Channel chan = ttservice.getChannels().get(user.nChannelID);
+            Channel chan = getService().getChannels().get(user.nChannelID);
             setCurrentChannel(chan);
             filesAdapter.update(curchannel);
 
@@ -2003,11 +2095,11 @@ private EditText newmsg;
         if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
             //event took place in current channel
             
-            if(user.nUserID != ttclient.getMyUserID()) {
+            if(user.nUserID != getClient().getMyUserID()) {
                 accessibilityAssistant.lockEvents();
                 textmsgAdapter.notifyDataSetChanged();
                 channelsAdapter.notifyDataSetChanged();
-                if (ttclient.getMyChannelID() == user.nChannelID) {
+                if (getClient().getMyChannelID() == user.nChannelID) {
                     if (sounds.get(SOUND_USERJOIN) != 0)
                         audioIcons.play(sounds.get(SOUND_USERJOIN), 1.0f, 1.0f, 0, 0, 1.0f);
                     if (ttsWrapper != null && PreferenceManager.getDefaultSharedPreferences(getBaseContext()).getBoolean("channel_join_checkbox", false)) {
@@ -2031,8 +2123,9 @@ private EditText newmsg;
 
     @Override
     public void onCmdUserLeftChannel(int channelid, User user) {
+        users.put(user.nUserID, user);
         
-        if(user.nUserID == ttclient.getMyUserID()) {
+        if(user.nUserID == getClient().getMyUserID()) {
             //myself left current channel
             
             textmsgAdapter.notifyDataSetChanged();
@@ -2053,7 +2146,7 @@ private EditText newmsg;
             
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
-            if (ttclient.getMyChannelID() == channelid) {
+            if (getClient().getMyChannelID() == channelid) {
                     if (sounds.get(SOUND_USERLEFT) != 0)
                         audioIcons.play(sounds.get(SOUND_USERLEFT), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && PreferenceManager.getDefaultSharedPreferences(getBaseContext()).getBoolean("channel_leave_checkbox", false)) {
@@ -2080,16 +2173,16 @@ private EditText newmsg;
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
 
-            if (textmessage.nFromUserID != ttservice.getTTInstance().getMyUserID()) {
+            if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
                 if (sounds.get(SOUND_CHANMSG) != 0)
                     audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.getBoolean("channel_message_checkbox", false)) {
-                    User sender = ttservice.getUsers().get(textmessage.nFromUserID);
+                    User sender = getService().getUsers().get(textmessage.nFromUserID);
                     String name = Utils.getDisplayName(getBaseContext(), sender);
                     ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", textmessage.szMessage));
                 }
             }
-            else if (textmessage.nFromUserID == ttservice.getTTInstance().getMyUserID()) {
+            else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
                 if (sounds.get(SOUND_CHANMSGSENT) != 0)
                     audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.getBoolean("channel_message_sent_checkbox", false)) {
@@ -2106,7 +2199,7 @@ private EditText newmsg;
             if (sounds.get(SOUND_BCASTMSG) != 0)
                 audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
             if (ttsWrapper != null && prefs.getBoolean("broadcast_message_checkbox", false)) {
-                User sender = ttservice.getUsers().get(textmessage.nFromUserID);
+                User sender = getService().getUsers().get(textmessage.nFromUserID);
                 String name = Utils.getDisplayName(getBaseContext(), sender);
                 ttsWrapper.speak(getString(R.string.text_tts_broadcast_message, (sender != null) ? name : "", textmessage.szMessage));
             }
@@ -2116,7 +2209,7 @@ private EditText newmsg;
             if (sounds.get(SOUND_USERMSG) != 0)
                 audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
             
-            User sender = ttservice.getUsers().get(textmessage.nFromUserID);
+            User sender = getService().getUsers().get(textmessage.nFromUserID);
             String name = Utils.getDisplayName(getBaseContext(), sender);
             String senderName = (sender != null) ? name : "";
             if (ttsWrapper != null && prefs.getBoolean("private_message_checkbox", false))
@@ -2164,7 +2257,11 @@ private EditText newmsg;
 
         if(mychannel != null && mychannel.nChannelID == channel.nChannelID) {
 
-            int myuserid = ttclient.getMyUserID();
+            if (ttsWrapper != null) {
+                Utils.ttsTransmitUsersToggled(getBaseContext(), mychannel, channel, getService().getUsers()).ifPresent(text -> ttsWrapper.speak(text));
+            }
+
+            int myuserid = getClient().getMyUserID();
 
             if(channel.transmitUsersQueue[0] == myuserid && mychannel.transmitUsersQueue[0] != myuserid) {
                 if(sounds.get(SOUND_TXREADY) != 0) {
@@ -2194,7 +2291,7 @@ private EditText newmsg;
     public void onCmdFileNew(RemoteFile remotefile) {
         filesAdapter.update();
         
-        if(activecmds.size() == 0 && ttclient.getMyChannelID() == remotefile.nChannelID) {
+        if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
             if(sounds.get(SOUND_FILESUPDATE) != 0) {
                 audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
             }
@@ -2205,7 +2302,7 @@ private EditText newmsg;
     public void onCmdFileRemove(RemoteFile remotefile) {
         filesAdapter.update();
         
-        if(activecmds.size() == 0 && ttclient.getMyChannelID() == remotefile.nChannelID) {
+        if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
             if(sounds.get(SOUND_FILESUPDATE) != 0) {
                 audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
             }
@@ -2221,6 +2318,7 @@ private EditText newmsg;
 
     @Override
     public void onUserStateChange(User user) {
+        users.put(user.nUserID, user);
         
         if (curchannel != null && user.nChannelID == curchannel.nChannelID) {
             accessibilityAssistant.lockEvents();
@@ -2262,7 +2360,16 @@ private EditText newmsg;
 
     @Override
     public void onVoiceActivationToggle(boolean voiceActivationEnabled, boolean isSuspended) {
-        adjustVoxState(voiceActivationEnabled, voiceActivationEnabled ? ttclient.getVoiceActivationLevel() : ttclient.getSoundInputGainLevel());
+        adjustVoxState(voiceActivationEnabled, voiceActivationEnabled ? getClient().getVoiceActivationLevel() : getClient().getSoundInputGainLevel());
+        if (voiceActivationEnabled) {
+            if (sounds.get(SOUND_VOXENABLE) != 0) {
+                audioIcons.play(sounds.get(SOUND_VOXENABLE), 1.0f, 1.0f, 0, 0, 1.0f);
+            }
+        } else {
+            if (sounds.get(SOUND_VOXDISABLE) != 0) {
+                audioIcons.play(sounds.get(SOUND_VOXDISABLE), 1.0f, 1.0f, 0, 0, 1.0f);
+            }
+        }
     }
 
     @Override

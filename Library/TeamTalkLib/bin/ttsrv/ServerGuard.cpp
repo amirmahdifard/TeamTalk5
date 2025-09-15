@@ -426,6 +426,45 @@ void ServerGuard::OnCustomMessage(const ServerUser& from, const ServerUser& to, 
     //}
 }
 
+void ServerGuard::OnUserUpdateStream(const ServerUser& user, const ServerChannel& channel, StreamType stream, int streamid)
+{
+    tostringstream oss;
+    switch (stream)
+    {
+    case STREAMTYPE_VOICE :
+        oss << ACE_TEXT("New voice stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_DESKTOP :
+        oss << ACE_TEXT("New desktop stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_DESKTOPINPUT :
+        oss << ACE_TEXT("New desktop input stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_MEDIAFILE_AUDIO :
+        oss << ACE_TEXT("New audio media file stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_MEDIAFILE_VIDEO :
+        oss << ACE_TEXT("New video media file stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_VIDEOCAPTURE :
+        oss << ACE_TEXT("New video capture stream ") << streamid << ACE_TEXT(" from #") << user.GetUserID() << ACE_TEXT(" ");
+        break;
+    case STREAMTYPE_MEDIAFILE :
+    case STREAMTYPE_CHANNELMSG :
+    case STREAMTYPE_NONE :
+    case STREAMTYPE_LOCALMEDIAPLAYBACK_AUDIO :
+    case STREAMTYPE_ALL :
+        break;
+    }
+
+    oss << ACE_TEXT("nickname: \"") << LogPrepare(user.GetNickname()).c_str() << ACE_TEXT("\" ");
+    if(user.GetUsername().length())
+        oss << ACE_TEXT("username: \"") << LogPrepare(user.GetUsername()).c_str() << ACE_TEXT("\" ");
+    oss << ACE_TEXT("to channel: \"") << LogPrepare(channel.GetChannelPath()).c_str() << ACE_TEXT("\".");
+
+    TT_LOG(oss.str().c_str());
+}
+
 void ServerGuard::OnChannelCreated(const ServerChannel& channel, 
                                    const ServerUser* user/* = NULL*/)
 {
@@ -447,6 +486,61 @@ void ServerGuard::OnChannelCreated(const ServerChannel& channel,
     TT_LOG(oss.str().c_str());
 }
 
+void logTransmitUsers(const std::set<int>& userids, ChannelTypes chantype, StreamType stream, tostringstream& oss)
+{
+    if (userids.empty())
+        return;
+
+    // non-classroom channels by default allow everyone to talk, so ignore those
+    if (*userids.begin() == TRANSMITUSERS_FREEFORALL && userids.size() == 1 && (chantype & CHANNEL_CLASSROOM) == CHANNEL_DEFAULT)
+        return;
+
+    switch (stream)
+    {
+    case STREAMTYPE_VOICE :
+        if (chantype & CHANNEL_CLASSROOM)
+            oss << ACE_TEXT(", can transmit voice:");
+        else
+            oss << ACE_TEXT(", cannot transmit voice:");
+        break;
+    case STREAMTYPE_VIDEOCAPTURE :
+        if (chantype & CHANNEL_CLASSROOM)
+            oss << ACE_TEXT(", can transmit video:");
+        else
+            oss << ACE_TEXT(", cannot transmit video:");
+        break;
+    case STREAMTYPE_DESKTOP :
+        if (chantype & CHANNEL_CLASSROOM)
+            oss << ACE_TEXT(", can transmit desktop:");
+        else
+            oss << ACE_TEXT(", cannot transmit desktop:");
+        break;
+    case STREAMTYPE_MEDIAFILE :
+        if (chantype & CHANNEL_CLASSROOM)
+            oss << ACE_TEXT(", can transmit media files:");
+        else
+            oss << ACE_TEXT(", cannot transmit media files:");
+        break;
+    case STREAMTYPE_CHANNELMSG :
+        if (chantype & CHANNEL_CLASSROOM)
+            oss << ACE_TEXT(", can send channel text messages:");
+        else
+            oss << ACE_TEXT(", cannot send channel text messages:");
+        break;
+    default :
+        assert(0);
+        break;
+    }
+
+    for (auto id : userids)
+    {
+        if ((chantype & CHANNEL_CLASSROOM) == CHANNEL_CLASSROOM && id == TRANSMITUSERS_FREEFORALL)
+            oss << ACE_TEXT(" ") << ACE_TEXT("everyone");
+        else if (id != TRANSMITUSERS_FREEFORALL)
+            oss << ACE_TEXT(" ") << ACE_TEXT("#") << id;
+    }
+}
+
 void ServerGuard::OnChannelUpdated(const ServerChannel& channel, 
                                    const ServerUser* user/* = NULL*/)
 {
@@ -466,6 +560,12 @@ void ServerGuard::OnChannelUpdated(const ServerChannel& channel,
 
     if ((channel.GetChannelType() & CHANNEL_SOLO_TRANSMIT) && channel.GetTransmitQueue().size())
         oss << ACE_TEXT(", transmitter: #") << *channel.GetTransmitQueue().begin();
+
+    logTransmitUsers(channel.GetVoiceUsers(), channel.GetChannelType(), STREAMTYPE_VOICE, oss);
+    logTransmitUsers(channel.GetVideoUsers(), channel.GetChannelType(), STREAMTYPE_VIDEOCAPTURE, oss);
+    logTransmitUsers(channel.GetMediaFileUsers(), channel.GetChannelType(), STREAMTYPE_MEDIAFILE, oss);
+    logTransmitUsers(channel.GetDesktopUsers(), channel.GetChannelType(), STREAMTYPE_DESKTOP, oss);
+    logTransmitUsers(channel.GetChannelTextMsgUsers(), channel.GetChannelType(), STREAMTYPE_CHANNELMSG, oss);
 
     oss << ACE_TEXT(".");
 

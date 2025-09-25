@@ -16,7 +16,7 @@
  * client's version can be seen in the @a szVersion member of the
  * #User-struct. */
 
-#define TEAMTALK_VERSION "5.20.0.5171"
+#define TEAMTALK_VERSION "5.21.0.5181"
 
 
 #if defined(WIN32)
@@ -930,7 +930,8 @@ extern "C" {
      * @{ */
 
     /**
-     * @brief The bitmap format used for a #DesktopWindow. */
+     * @brief The bitmap format used for a #DesktopWindow.
+     * A desktop window for transmission must be less than 16 MBytes. */
     typedef enum BitmapFormat
     {
         /** @brief Used to denote nothing selected. */
@@ -942,7 +943,7 @@ extern "C" {
          * 8-bit bitmap is 4095 blocks of 120 by 34 pixels. */
         BMP_RGB8_PALETTE    = 1,
         /** @brief The bitmap is a 16-bit colored bitmap. The maximum
-         * pixels. */
+         * size of a 16-bit bitmap is 4095 blocks of 102 x 20 pixels. */
         BMP_RGB16_555       = 2,
         /** @brief The bitmap is a 24-bit colored bitmap. The maximum
          * size of a 24-bit bitmap is 4095 blocks of 85 by 16
@@ -973,9 +974,9 @@ extern "C" {
      * TT_SendDesktopWindow(). */
     typedef struct DesktopWindow
     {
-        /** @brief The width in pixels of the bitmap. */
+        /** @brief The width in pixels of the bitmap. See limits in #BitmapFormat. */
         INT32 nWidth;
-        /** @brief The height in pixels of the bitmap. */
+        /** @brief The height in pixels of the bitmap. See limits in #BitmapFormat. */
         INT32 nHeight;
         /** @brief The format of the bitmap. */
         BitmapFormat bmpFormat;
@@ -994,7 +995,7 @@ extern "C" {
         /** @brief A buffer pointing to the bitmap data (often refered to as Scan0). */
         VOID* frameBuffer;
         /** @brief The size in bytes of the buffer allocate in @a
-         * frameBuffer. Typically @c nBytesPerLine * @c nHeight. */
+         * frameBuffer. Typically @c nBytesPerLine * @c nHeight. See limits in #BitmapFormat. */
         INT32 nFrameBufferSize;
     } DesktopWindow;
 
@@ -1758,6 +1759,10 @@ extern "C" {
         SERVERLOGEVENT_SERVER_UPDATED              = 0x00800000,
         /** @brief User saved server's configuration is logged to file by the server. */
         SERVERLOGEVENT_SERVER_SAVECONFIG           = 0x01000000,
+        /** @brief User caused encryption error. */
+        SERVERLOGEVENT_USER_CRYPTERROR             = 0x02000000,
+        /** @brief User started new stream. */
+        SERVERLOGEVENT_USER_NEW_STREAM             = 0x04000000,
     } ServerLogEvent;
 
     /** @brief Bitmask of #ServerLogEvent.

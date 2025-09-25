@@ -731,10 +731,9 @@ int ParseArguments(int argc, ACE_TCHAR* argv[]
 #endif
 
 #if defined(ENABLE_TEAMTALKPRO)
-    while (HasBearWareWebLogin(xmlSettings))
+    while (!LoginBearWare(xmlSettings))
     {
-        if (LoginBearWare(xmlSettings))
-            break;
+        TT_LOG(ACE_TEXT("Failed to log on using BearWare.dk WebLogin."));
     }
 #endif
 
@@ -747,7 +746,7 @@ void PrintCommandArgs()
     cout << TEAMTALK_NAME << " version " << TEAMTALK_VERSION_FRIENDLY << endl;
     cout << "Compiled on " __DATE__ " " __TIME__ "." << endl;
     cout << endl;
-    cout << "Copyright (c) 2002-2023, BearWare.dk" << endl;
+    cout << "Copyright (c) 2002-2025, BearWare.dk" << endl;
     cout << endl;
     cout << "Usage: " << TEAMTALK_EXE << " [OPTIONS]" << endl << endl;
 #if defined(BUILD_NT_SERVICE)

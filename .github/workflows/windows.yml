@@ -1,6 +1,6 @@
 name: Windows
 
-on: [push]
+on: [push, pull_request]
 
 env:
   # TeamTalk unit test environment variables
@@ -24,6 +24,7 @@ jobs:
             qtversion: '5.15.*'
             msystem: MINGW32
             portablearch: win32
+            vcpkgarch: x86-windows
           - name: VS2022Release64
             vmimage: windows-2022
             cmakeplatform: x64
@@ -33,6 +34,7 @@ jobs:
             qtmodules: 'qtmultimedia qtspeech qtvirtualkeyboard'
             msystem: MINGW64
             portablearch: win64
+            vcpkgarch: x64-windows
         exlude:
           - name: VS2019Release32
 
@@ -43,10 +45,15 @@ jobs:
       with:
         submodules: true
 
-    - uses: actions/setup-java@v4
+    - uses: actions/setup-java@v5
       with:
         distribution: 'temurin'
         java-version: '21'
+        architecture: ${{ matrix.dotnetarch }}
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.10'
         architecture: ${{ matrix.dotnetarch }}
 
     - uses: jurplel/install-qt-action@v4
@@ -54,27 +61,37 @@ jobs:
         arch: '${{ matrix.qtarch }}'
         version: '${{ matrix.qtversion }}'
         modules: '${{ matrix.qtmodules }}'
-        cache-key-prefix: 'install-qt-action'
+        setup-python: false
 
     - uses: ssciwr/doxygen-install@v1
       with:
-        version: "1.9.8"
-
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-        architecture: ${{ matrix.dotnetarch }}
+        version: '1.14.0'
 
     - uses: darenm/Setup-VSTest@v1
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-cov
+      run: python -m pip install -U pip pytest pytest-cov
 
     - name: Print environment
       shell: cmd
       run: set
+
+    - name: Setup msbuild in PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Install Cygwin
+      uses: cygwin/cygwin-install-action@v6
+      with:
+        packages: make
+        install-dir: 'C:\cygwin64'
+        add-to-path: false
+        work-vol: 'C:'
+
+    - name: Install YASM
+      shell: cmd
+      run: |
+        vcpkg install --recurse yasm --triplet ${{ matrix.vcpkgarch }} --clean-after-build
+        echo %VCPKG_INSTALLATION_ROOT%\installed\${{ matrix.vcpkgarch }}\tools\yasm>> %GITHUB_PATH%
 
     - name: Generate CMake Projects
       working-directory: ${{runner.workspace}}
@@ -83,9 +100,7 @@ jobs:
         cmake -S TeamTalk5 -B output -A ${{ matrix.cmakeplatform }}
         -DBUILD_TEAMTALK_LIBRARY_UNITTEST_CATCH2=ON
         -DBUILD_TEAMTALK_LIBRARY_UNITTEST_CATCH2_PERF=OFF
-        -DFEATURE_LIBVPX=OFF
         -DFEATURE_WEBRTC=OFF
-        -DTOOLCHAIN_LIBVPX=OFF
         -DBUILD_TEAMTALK_CLIENT_TEAMTALKAPP_DOTNET=OFF
         -DCMAKE_INSTALL_PREFIX=${{runner.workspace}}/install-teamtalk
 
@@ -124,8 +139,7 @@ jobs:
     - name: Catch unit-test
       working-directory: ${{runner.workspace}}/TeamTalk5/Library/TeamTalkLib/test
       shell: cmd
-      run: |
-        catchtt.exe --durations yes
+      run: catchtt.exe --durations yes
 
     - name: Restart TeamTalk Standard Service
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
@@ -151,30 +165,25 @@ jobs:
 
     - name: Run PyTest
       working-directory: ${{runner.workspace}}/TeamTalk5/Library/TeamTalkPy/test
-      run: |
-        pytest teamtalk_test.py
+      run: pytest teamtalk_test.py
 
     - name: Run Python client
       working-directory: ${{runner.workspace}}/TeamTalk5/Client/ttserverlogpy
-      run: |
-        python main.py
+      run: python main.py
 
     - name: Stop TeamTalk Standard Service
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
       shell: cmd
-      run: |
-        tt5svc.exe -e
+      run: tt5svc.exe -e
 
     - name: Uninstall TeamTalk Standard Service
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
       shell: cmd
-      run: |
-        tt5svc.exe -u
+      run: tt5svc.exe -u
 
     - name: Enable encryption
       shell: cmd
-      run: |
-        echo ENCRYPTED=true>> %GITHUB_ENV%
+      run: echo ENCRYPTED=true>> %GITHUB_ENV%
 
     - name: Start TeamTalk Professional Service
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
@@ -194,14 +203,12 @@ jobs:
     - name: Stop TeamTalk Professional Service
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
       shell: cmd
-      run: |
-        tt5prosvc.exe -e
+      run: tt5prosvc.exe -e
 
     - name: Uninstall TeamTalk Services
       working-directory: ${{runner.workspace}}/TeamTalk5/Server
       shell: cmd
-      run: |
-        tt5prosvc.exe -u
+      run: tt5prosvc.exe -u
 
     # Doxygen doesn't exist as GitHub action, so use pacman from MSYS64
     - uses: msys2/setup-msys2@v2
@@ -213,12 +220,11 @@ jobs:
     - name: Compile TeamTalk5.chm
       working-directory: ${{runner.workspace}}/TeamTalk5/Documentation/TeamTalk
       shell: cmd
-      run: |
-        "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" output\index.hhp
-        EXIT /B 0
+      run: '"C:\Program Files (x86)\HTML Help Workshop\hhc.exe" output\index.hhp & exit /b 0'
 
     - name: Make Portable Setup Targets
       working-directory: ${{runner.workspace}}
+      shell: msys2 {0}
       run: |
         cd install-teamtalk
         export TEAMTALK_INSTALLDIR=$PWD
@@ -226,7 +232,6 @@ jobs:
         source env.sh
         cd Setup/Portable
         make ${{ matrix.portablearch }} ${{ matrix.portablearch }}pro
-      shell: msys2 {0}
 
     - name: Archive TeamTalk SDK Binaries
       uses: actions/upload-artifact@v4

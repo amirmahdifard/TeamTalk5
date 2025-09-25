@@ -1635,7 +1635,7 @@ TEST_CASE("TestWebLogin")
     }
 
     ACE_TString token, loginid;
-    REQUIRE(LoginBearWareAccount(ACE_TEXT("foo"), ACE_TEXT("bar"), token, loginid) == 0);
+    REQUIRE(LoginBearWareAccount(ACE_TEXT("foo"), ACE_TEXT("bar"), token, loginid) == WEBLOGIN_FAILED);
 }
 
 TEST_CASE("TestHTTPPost")
@@ -2763,7 +2763,11 @@ TEST_CASE("StreamVideoFile")
     vid.webm_vp8.nRcTargetBitrate = 128;
     vid.webm_vp8.nEncodeDeadline = WEBM_VPX_DL_REALTIME;
 
+#if defined(WIN32)
+    TTCHAR filename[TT_STRLEN] = ACE_TEXT("testdata/Video/EasterFlowers.wmv");
+#else
     TTCHAR filename[TT_STRLEN] = ACE_TEXT("testdata/Video/MOV03830.MPG");
+#endif
 
     REQUIRE(TT_StartStreamingMediaFileToChannel(txclient, filename, &vid));
 

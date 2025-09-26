@@ -857,7 +857,11 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
 
     while (token.empty())
     {
-        cout << "To use BearWare.dk WebLogin please provide your credentials." << endl;
+        cout << TEAMTALK_NAME << " requires a BearWare.dk WebLogin" << endl;
+        cout << "that is authorized for use." << endl;
+        cout << endl;
+        cout << "Please provide your credentials for BearWare.dk WebLogin." << endl;
+        cout << endl;
         cout << "Type username: ";
         bwid = LocalToUnicode(printGetString(UnicodeToLocal(bwid).c_str()).c_str());
         cout << "Type password: ";
@@ -865,7 +869,7 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
         ACE_TString newtoken, loginid;
         switch (LoginBearWareAccount(bwid, passwd, newtoken, loginid))
         {
-        case 1 :
+        case WEBLOGIN_SUCCESS :
             cout << endl << "Login successful." << endl << endl;
             cout << "To avoid providing your credentials every time the server is started" << endl;
             cout << "it is recommended to store your access token in the server's configuration" << endl;
@@ -879,15 +883,17 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
                 chmod(xmlSettings.GetFileName().c_str(), S_IRUSR | S_IWUSR);
                 std::cout << "Changed file permissions to 600 on " << xmlSettings.GetFileName() << std::endl;
 #endif
+                std::cout << "The token will be valid as long as you do not change the password of your" << std::endl;
+                std::cout << "BearWare.dk WebLogin account." << std::endl;
             }
             bwid = loginid;
             token = newtoken.c_str();
             break;
-        case -1 :
+        case WEBLOGIN_SERVER_UNAVAILABLE :
+        case WEBLOGIN_SERVER_INCOMPATIBLE :
             cout << "Unable to contact BearWare.dk WebLogin" << endl;
             break;
-        default :
-        case 0 :
+        case WEBLOGIN_FAILED :
             cout << "Login failed. Please try again." << endl;
             break;
         }
@@ -896,14 +902,29 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
     tostringstream os;
     os << "Authenticating " << UnicodeToLocal(bwid).c_str();
     TT_SYSLOG(os.str().c_str());
-    if (AuthBearWareAccount(bwid, token) == 0)
+    switch (AuthBearWareAccount(bwid, token))
     {
+    case WEBLOGIN_FAILED :
         os.str(ACE_TEXT(""));
         os << "Failed to authenticate BearWare.dk WebLogin: " << UnicodeToLocal(bwid).c_str();
         TT_SYSLOG(os.str().c_str());
-        xmlSettings.SetBearWareWebLogin(UnicodeToUtf8(bwid).c_str(), "");
+        cout << "Reset BearWare.dk WebLogin credentials ";
+        if (printGetBool(true))
+        {
+            xmlSettings.SetBearWareWebLogin(UnicodeToUtf8(bwid).c_str(), "");
+            xmlSettings.SaveFile();
+        }
         return false;
+    case WEBLOGIN_SERVER_UNAVAILABLE :
+    case WEBLOGIN_SERVER_INCOMPATIBLE :
+        os.str(ACE_TEXT(""));
+        os << "BearWare.dk WebLogin is currently unavailable. Continuing... ";
+        TT_SYSLOG(os.str().c_str());
+        break;
+    case WEBLOGIN_SUCCESS :
+        break;
     }
+
     return true;
 }
 #endif /* ENABLE_TEAMTALKPRO */

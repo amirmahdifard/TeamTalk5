@@ -23,14 +23,17 @@
 
 #include "MFCapture.h"
 #include "MFTransform.h"
-#include <codec/BmpFile.h>
 
+#include "myace/MyACE.h"
+
+#include <atlbase.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
-#include <atlbase.h>
 
-#include <assert.h>
+#include <cassert>
+#include <map>
+#include <thread>
 
 using namespace vidcap;
 
@@ -246,7 +249,7 @@ void MFCapture::Run(CaptureSession* session, ACE_TString deviceid)
 {
     HRESULT hr;
     UINT32 cDevices = 0;
-    IMFActivate **ppDevices;
+    IMFActivate** ppDevices{};
     CComPtr<IMFActivate> pDevice;
     CComPtr<IMFMediaSource> pSource;
     CComPtr<IMFAttributes> pReaderAttributes;
@@ -257,40 +260,44 @@ void MFCapture::Run(CaptureSession* session, ACE_TString deviceid)
     unsigned devid = ACE_OS::atoi(deviceid.c_str());
     bool start = false;
 
+#define RETURNONERROR(error)                \
+    do {                                    \
+        if (error)                          \
+        {                                   \
+            if (cDevices)                   \
+                CoTaskMemFree(ppDevices);   \
+            session->opened.set(false);     \
+            return;                         \
+        }                                   \
+    } while (0)
+
     hr = MFCreateAttributes(&pAttributes, 1);
-    if(FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     hr = pAttributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
         MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
-    if (FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     // Enumerate devices.
     hr = MFEnumDeviceSources(pAttributes, &ppDevices, &cDevices);
-    if (FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
-    if (devid >= cDevices)
-        goto fail;
+    RETURNONERROR(devid >= cDevices);
      
     pDevice = ppDevices[devid];
 
     // open source to get capture formats
     hr = pDevice->ActivateObject(IID_PPV_ARGS(&pSource));
-    if(FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     hr = MFCreateAttributes(&pReaderAttributes, 2);
-    if(FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     hr = pReaderAttributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
     MYTRACE_COND(FAILED(hr), ACE_TEXT("Failed to enable video processing\n"));
 
     hr = MFCreateSourceReaderFromMediaSource(pSource, pReaderAttributes, &pReader);
-    if(FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     // Get native media type of device
     while(SUCCEEDED(pReader->GetNativeMediaType(dwVideoStreamIndex, dwMediaTypeIndex, &pInputType)))
@@ -306,12 +313,10 @@ void MFCapture::Run(CaptureSession* session, ACE_TString deviceid)
         pInputType.Release();
     }
 
-    if (!pInputType.p)
-        goto fail;
+    RETURNONERROR(!pInputType.p);
 
     hr = pReader->SetCurrentMediaType(dwVideoStreamIndex, NULL, pInputType);
-    if(FAILED(hr))
-        goto fail;
+    RETURNONERROR(FAILED(hr));
 
     //{
     //    GUID subType;
@@ -329,8 +334,7 @@ void MFCapture::Run(CaptureSession* session, ACE_TString deviceid)
 
     session->started.get(start);
 
-    if(!start)
-        goto fail;
+    RETURNONERROR(!start);
 
     bool error = false;
     while (!session->stop)
@@ -401,9 +405,5 @@ void MFCapture::Run(CaptureSession* session, ACE_TString deviceid)
         }
     }
 
-fail:
-    if(cDevices)
-        CoTaskMemFree(ppDevices);
-
-    session->opened.set(false);
+    RETURNONERROR(true);
 }

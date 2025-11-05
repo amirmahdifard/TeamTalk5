@@ -24,43 +24,47 @@
 #if !defined(PACKETHANDLER_H)
 #define PACKETHANDLER_H
 
-#include <ace/Reactor.h>
-#include <ace/Event_Handler.h>
-#include <ace/Message_Queue.h>
-#include <ace/SOCK_Dgram.h>
-
-#include <myace/MyACE.h>
-#include <vector>
-#include <set>
-
 #include "PacketLayout.h"
 
-typedef unsigned char byte_t;
+#include <ace/Addr.h>
+#include <ace/Condition_Thread_Mutex.h>
+#include <ace/Event_Handler.h>
+#include <ace/INET_Addr.h>
+#include <ace/Message_Block.h>
+#include <ace/Message_Queue_T.h>
+#include <ace/Reactor.h>
+#include <ace/SOCK_Dgram.h>
+
+#include <set>
+#include <vector>
+
+
+using byte_t = unsigned char;
 
 namespace teamtalk {
 
-#define PACKETBUFFER 0x10000
+constexpr auto PACKETBUFFER = 0x10000;
 
 // https://da.wikipedia.org/wiki/Differentiated_Services
-#define IP_TOS_IGNORE           (0x00 << 2)
-#define IP_TOS_SIGNALING        (0x28 << 2)
-#define IP_TOS_VOICE            (0x2e << 2)
-#define IP_TOS_VIDEO            (0x22 << 2)
-#define IP_TOS_DESKTOP          (0x20 << 2)
-#define IP_TOS_MULTIMEDIA_AUDIO (0x1a << 2)
-#define IP_TOS_MULTIMEDIA_VIDEO (0x1e << 2)
+constexpr auto IP_TOS_IGNORE = (0x00 << 2);
+constexpr auto IP_TOS_SIGNALING = (0x28 << 2);
+constexpr auto IP_TOS_VOICE = (0x2e << 2);
+constexpr auto IP_TOS_VIDEO = (0x22 << 2);
+constexpr auto IP_TOS_DESKTOP = (0x20 << 2);
+constexpr auto IP_TOS_MULTIMEDIA_AUDIO = (0x1a << 2);
+constexpr auto IP_TOS_MULTIMEDIA_VIDEO = (0x1e << 2);
 
     class PacketListener
     {
     public:
-        virtual ~PacketListener() {}
+        virtual ~PacketListener() = default;
         virtual void ReceivedPacket(class PacketHandler* ph,
                                     const char* data_buf, int data_len, 
                                     const ACE_INET_Addr& addr) = 0;
         virtual void SendPackets(){}
     };
 
-    typedef std::set<PacketListener*> packetlisteners_t;
+    using packetlisteners_t = std::set<PacketListener*>;
 
     class PacketQueue : private ACE_Message_Queue<ACE_MT_SYNCH>
     {
@@ -78,10 +82,10 @@ namespace teamtalk {
     {
     public:
         PacketHandler(ACE_Reactor* r);
-        virtual ~PacketHandler();
+        ~PacketHandler() override;
 
-        bool open(const ACE_Addr &addr, int recv_buf, int send_buf);
-        bool close();
+        bool Open(const ACE_Addr &addr, int recv_buf, int send_buf);
+        bool Close();
 
         void AddListener(teamtalk::PacketListener* pListener);
         void RemoveListener(teamtalk::PacketListener* pListener);
@@ -94,12 +98,12 @@ namespace teamtalk {
         ACE_HANDLE get_handle() const override;
 
         //Returns a reference to the underlying dgram socket.
-        ACE_SOCK_Dgram& sock_i();
+        ACE_SOCK_Dgram& Socket();
 
         ACE_INET_Addr GetLocalAddr() const { return m_localaddr; }
 
     private:
-        ACE_SOCK_Dgram sock_;
+        ACE_SOCK_Dgram m_sock;
         ACE_INET_Addr m_localaddr;
         packetlisteners_t m_setListeners;
         std::vector<char> m_buffer;
@@ -117,6 +121,6 @@ namespace teamtalk {
         ACE_SOCK_Dgram& m_dgram;
         int m_level = 0, m_option = 0, m_value = 0;
     };
-}
+} // namespace teamtalk
 
 #endif

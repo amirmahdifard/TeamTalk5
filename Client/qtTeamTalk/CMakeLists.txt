@@ -17,14 +17,6 @@ function(set_output_dir target dir)
     ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir})
 endfunction()
 
-# Option to build Qt Framework on Windows. For CMake to find Qt set up
-# environment variable QTDIR to point to QT_INSTALL_PREFIX defined in
-# qt/CMakeLists.txt
-option (QT_BUILD_QTFRAMEWORK "Build Qt Framework" OFF)
-if (QT_BUILD_QTFRAMEWORK)
-  add_subdirectory(qt)
-endif()
-
 # Locate Qt Framework
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   find_package (Qt5 COMPONENTS Widgets Xml Network Multimedia TextToSpeech DBus X11Extras)
@@ -66,7 +58,7 @@ if (Qt5_FOUND OR Qt6_FOUND)
 
   if (Qt6_FOUND)
     set (CMAKE_CXX_STANDARD 17)
-    set (CMAKE_OSX_DEPLOYMENT_TARGET 12.0) # Qt 6.9.2 requires
+    set (CMAKE_OSX_DEPLOYMENT_TARGET 13.0) # Qt 6.10.0 requires
   else()
     set (CMAKE_CXX_STANDARD 17)
   endif()
@@ -216,14 +208,14 @@ endif()
           # Qt Maintenance Tool is able to download and install Qt's OpenSSL binaries. These files
           # will be located in <Qt install dir>/Tools/OpenSSL
           if (${CMAKE_SIZEOF_VOID_P} EQUAL 8)
-            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-1_1-x64.dll libcrypto-1_1.dll libcrypto.dll)
-            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-1_1-x64.dll libssl-1_1.dll libssl.dll)
+            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-3-x64.dll PATHS "C:/Program Files/OpenSSL/bin")
+            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-3-x64.dll PATHS "C:/Program Files/OpenSSL/bin")
           else()
-            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-1_1.dll libcrypto.dll)
-            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-1_1.dll libssl.dll)
+            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-3.dll)
+            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-3.dll)
           endif()
           if (QT_OPENSSL_LIBCRYPTODLL_PATH-NOTFOUND OR QT_OPENSSL_LIBSSLDLL_PATH-NOTFOUND)
-            message (WARNING "Cannot find OpenSSL's libcrypto.dll and libssl.dll for Qt deployed DLLs")
+            message (WARNING "Cannot find OpenSSL 3.x DLLs for Qt deployed DLLs")
           else()
             message ("OpenSSL libcrypto.dll for Qt deployment found here: ${QT_OPENSSL_LIBCRYPTODLL_PATH}")
             message ("OpenSSL libssl.dll for Qt deployment found here: ${QT_OPENSSL_LIBSSLDLL_PATH}")

@@ -14,22 +14,22 @@ if (MSVC)
     if (${CMAKE_SIZEOF_VOID_P} EQUAL 8)
       ExternalProject_Add(openssl-src
         GIT_REPOSITORY    https://github.com/openssl/openssl.git
-        GIT_TAG           openssl-3.5.2
+        GIT_TAG           openssl-3.6.0
         GIT_SHALLOW       TRUE
         UPDATE_COMMAND    ""
         PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl
         CONFIGURE_COMMAND ""
         CONFIGURE_COMMAND perl <SOURCE_DIR>\\Configure no-shared no-asm --prefix=<INSTALL_DIR> --openssldir=<INSTALL_DIR>\\ssl VC-WIN64A
         BUILD_COMMAND     set CL=/MP
-        COMMAND           nmake
+        COMMAND           nmake /s
         INSTALL_DIR       ${TOOLCHAIN_INSTALL_PREFIX_OPENSSL}
-        INSTALL_COMMAND   nmake install
+        INSTALL_COMMAND   nmake /s install
         BUILD_BYPRODUCTS  <INSTALL_DIR>/lib/libcrypto.lib <INSTALL_DIR>/lib/libssl.lib
         )
     else()
       ExternalProject_Add(openssl-src
         GIT_REPOSITORY    https://github.com/openssl/openssl.git
-        GIT_TAG           openssl-3.5.2
+        GIT_TAG           openssl-3.6.0
         GIT_SHALLOW       TRUE
         UPDATE_COMMAND    ""
         PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl
@@ -74,7 +74,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   if (TOOLCHAIN_BUILD_EXTERNALPROJECTS)
     ExternalProject_Add(openssl-intel-src
       GIT_REPOSITORY    https://github.com/openssl/openssl.git
-      GIT_TAG           openssl-3.5.2
+      GIT_TAG           openssl-3.6.0
       GIT_SHALLOW       TRUE
       UPDATE_COMMAND    ""
       PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl-intel
@@ -90,7 +90,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
     ExternalProject_Add(openssl-arm64-src
       GIT_REPOSITORY    https://github.com/openssl/openssl.git
-      GIT_TAG           openssl-3.5.2
+      GIT_TAG           openssl-3.6.0
       GIT_SHALLOW       TRUE
       UPDATE_COMMAND    ""
       PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl-arm64
@@ -159,7 +159,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "iOS")
   if (TOOLCHAIN_BUILD_EXTERNALPROJECTS)
     ExternalProject_Add(openssl-src
       GIT_REPOSITORY    https://github.com/openssl/openssl.git
-      GIT_TAG           openssl-3.5.2
+      GIT_TAG           openssl-3.6.0
       GIT_SHALLOW       TRUE
       UPDATE_COMMAND    ""
       PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl
@@ -197,7 +197,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   if (TOOLCHAIN_BUILD_EXTERNALPROJECTS)
     ExternalProject_Add(openssl-src
       GIT_REPOSITORY    https://github.com/openssl/openssl.git
-      GIT_TAG           openssl-3.5.2
+      GIT_TAG           openssl-3.6.0
       GIT_SHALLOW       TRUE
       UPDATE_COMMAND    ""
       PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl
@@ -253,7 +253,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Android")
   if (TOOLCHAIN_BUILD_EXTERNALPROJECTS)
     ExternalProject_Add(openssl-src
       GIT_REPOSITORY    https://github.com/openssl/openssl.git
-      GIT_TAG           openssl-3.5.2
+      GIT_TAG           openssl-3.6.0
       GIT_SHALLOW       TRUE
       UPDATE_COMMAND    ""
       PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/openssl

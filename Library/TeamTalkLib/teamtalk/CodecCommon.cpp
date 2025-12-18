@@ -23,31 +23,32 @@
 
 #include "CodecCommon.h"
 #include "PacketLayout.h"
+#include "myace/MyACE.h"
 
-#include <myace/MyACE.h>
+#include <cassert>
 
-#define SPEEX_NB_MODE 0
-#define SPEEX_WB_MODE 1
-#define SPEEX_UWB_MODE 2
-#define SPEEX_NB_SAMPLERATE 8000
-#define SPEEX_WB_SAMPLERATE 16000
-#define SPEEX_UWB_SAMPLERATE 32000
-#define SPEEX_NB_FRAMESIZE 160
-#define SPEEX_WB_FRAMESIZE 320
-#define SPEEX_UWB_FRAMESIZE 640
-#define SPEEX_QUALITY_MIN 0
-#define SPEEX_QUALITY_MAX 10
-#define SPEEX_FRAME_MSEC_MIN 20
-#define SPEEX_FRAME_MSEC_MAX 1000
+constexpr auto SPEEX_NB_MODE = 0;
+constexpr auto SPEEX_WB_MODE = 1;
+constexpr auto SPEEX_UWB_MODE = 2;
+constexpr auto SPEEX_NB_SAMPLERATE = 8000;
+constexpr auto SPEEX_WB_SAMPLERATE = 16000;
+constexpr auto SPEEX_UWB_SAMPLERATE = 32000;
+constexpr auto SPEEX_NB_FRAMESIZE = 160;
+constexpr auto SPEEX_WB_FRAMESIZE = 320;
+constexpr auto SPEEX_UWB_FRAMESIZE = 640;
+constexpr auto SPEEX_QUALITY_MIN = 0;
+constexpr auto SPEEX_QUALITY_MAX = 10;
+constexpr auto SPEEX_FRAME_MSEC_MIN = 20;
+constexpr auto SPEEX_FRAME_MSEC_MAX = 1000;
 
-#define OPUS_FRAME_MSEC_MIN 2
-#define OPUS_FRAME_MSEC_MAX 120
-#define OPUS_SAMPLERATE_MIN 8000
-#define OPUS_SAMPLERATE_MAX 48000
-#define OPUS_BITRATE_MIN 6000     /* Remember to updated DLL header file when modifying this */
-#define OPUS_BITRATE_MAX 512000   /* Remember to updated DLL header file when modifying this */
+constexpr auto OPUS_FRAME_MSEC_MIN = 2;
+constexpr auto OPUS_FRAME_MSEC_MAX = 120;
+constexpr auto OPUS_SAMPLERATE_MIN = 8000;
+constexpr auto OPUS_SAMPLERATE_MAX = 48000;
+constexpr auto OPUS_BITRATE_MIN = 6000     /* Remember to updated DLL header file when modifying this */;
+constexpr auto OPUS_BITRATE_MAX = 512000   /* Remember to updated DLL header file when modifying this */;
 
-#define AUDIOPACKET_DURATION_MSEC_MAX 1000
+constexpr auto AUDIOPACKET_DURATION_MSEC_MAX = 1000;
 
 namespace teamtalk
 {
@@ -130,11 +131,11 @@ namespace teamtalk
 
     int GetAudioCodecCbMillis(const AudioCodec& codec)
     {
-        int samplerate = GetAudioCodecSampleRate(codec);
+        int const samplerate = GetAudioCodecSampleRate(codec);
         if(samplerate == 0)
             return 0;
 
-        int cb_samples = GetAudioCodecCbSamples(codec);
+        int const cb_samples = GetAudioCodecCbSamples(codec);
         return cb_samples == 0? 0 : PCM16_SAMPLES_DURATION(cb_samples, samplerate);
     }
 
@@ -347,11 +348,11 @@ namespace teamtalk
     // AudioPacket can contain a maximum of 0xfff bytes
     int GetAudioCodecMaxPacketBitrate(const AudioCodec& codec)
     {
-        int txinterval_msec = GetAudioCodecCbMillis(codec);
-        if (!txinterval_msec)
+        int const txinterval_msec = GetAudioCodecCbMillis(codec);
+        if (txinterval_msec == 0)
             return 0;
 
-        int maxbitrate = 8 * ((MAX_ENC_FRAMESIZE * 1000) / txinterval_msec);
+        int const maxbitrate = 8 * ((MAX_ENC_FRAMESIZE * 1000) / txinterval_msec);
         MYTRACE_COND(GetAudioCodecBitRate(codec) > maxbitrate,
                      ACE_TEXT("Max packet bitrate exceeded: %d > %d\n"),
                      GetAudioCodecBitRate(codec), maxbitrate);
@@ -363,7 +364,7 @@ namespace teamtalk
         int channels = GetAudioCodecChannels(codec);
         if (GetAudioCodecSimulateStereo(codec))
             channels = 2;
-        return media::AudioFormat(GetAudioCodecSampleRate(codec), channels);
+        return {GetAudioCodecSampleRate(codec), channels};
     }
 
     media::AudioInputFormat GetAudioCodecAudioInputFormat(const AudioCodec& codec)
@@ -436,12 +437,11 @@ namespace teamtalk
 
     int GetSpeexFramesDuration(int bandmode, int framecount)
     {
-        int nSamples = GetSpeexBandModeFrameSize(bandmode) * framecount;
-        int nSampleRate = GetSpeexBandModeSampleRate(bandmode);
+        int const nSamples = GetSpeexBandModeFrameSize(bandmode) * framecount;
+        int const nSampleRate = GetSpeexBandModeSampleRate(bandmode);
         if(nSampleRate>0)
             return (nSamples * 1000) / nSampleRate;
-        else
-            return 0;
+        return 0;
     }
 
     int GetSpeexSamplesCount(int bandmode, int framecount)
@@ -486,5 +486,5 @@ namespace teamtalk
         return false;
     }
 
-}
+} // namespace teamtalk
 

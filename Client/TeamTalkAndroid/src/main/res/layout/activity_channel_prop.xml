@@ -1,6 +1,5 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/LinearLayout1"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -16,7 +15,6 @@
         android:orientation="horizontal" >
 
         <TextView
-            android:id="@+id/channamelabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/channel_prop_title_name" />
@@ -27,7 +25,8 @@
             android:layout_height="wrap_content"
             android:inputType="text"
             android:singleLine="true"
-            android:hint="@string/channamelab">
+            android:hint="@string/channamelab"
+            android:importantForAutofill="no">
         </EditText>
     </LinearLayout>
 
@@ -37,7 +36,6 @@
         android:orientation="horizontal" >
 
         <TextView
-            android:id="@+id/chanpasswdlabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/channel_prop_title_password" />
@@ -48,7 +46,8 @@
             android:layout_height="wrap_content"
             android:inputType="textPassword"
             android:lines="1"
-            android:hint="@string/chanpswlab">
+            android:hint="@string/chanpswlab"
+            android:importantForAutofill="no">
         </EditText>
     </LinearLayout>
     <LinearLayout
@@ -57,7 +56,6 @@
         android:orientation="horizontal" >
 
         <TextView
-            android:id="@+id/chantopiclabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/channel_prop_title_topic" />
@@ -68,7 +66,8 @@
             android:layout_height="wrap_content"
             android:inputType="text"
             android:lines="3"
-            android:hint="@string/chantopiclab" >
+            android:hint="@string/chantopiclab"
+            android:importantForAutofill="no" >
         </EditText>
     </LinearLayout>
     
@@ -79,7 +78,6 @@
         android:orientation="horizontal" >
 
         <TextView
-            android:id="@+id/chanoppasswdlabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/channel_prop_title_op_password"
@@ -91,7 +89,8 @@
             android:layout_height="wrap_content"
             android:inputType="textPassword"
             android:lines="1"
-            android:hint="@string/chanoppswlab" >
+            android:hint="@string/chanoppswlab"
+            android:importantForAutofill="no" >
         </EditText>
     </LinearLayout>
     
@@ -113,7 +112,8 @@
             android:layout_weight="1"
             android:ems="10"
             android:inputType="number"
-            android:hint="@string/maxuserslab" />
+            android:hint="@string/maxuserslab"
+            android:importantForAutofill="no" />
 
     </LinearLayout>
     
@@ -135,7 +135,8 @@
             android:layout_weight="1"
             android:ems="10"
             android:inputType="number"
-            android:hint="@string/diskquotalab" />
+            android:hint="@string/diskquotalab"
+            android:importantForAutofill="no" />
 
     </LinearLayout>
     <LinearLayout

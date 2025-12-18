@@ -9,17 +9,25 @@ include(ExternalProject)
 set (TOOLCHAIN_INSTALL_PREFIX_SPEEX ${TOOLCHAIN_INSTALL_PREFIX}/speex)
 
 if (MSVC)
+
+  if (NOT CMAKE_VS_PLATFORM_NAME)
+    if (${CMAKE_SIZEOF_VOID_P} EQUAL 8)
+      set (CMAKE_VS_PLATFORM_NAME x64)
+    else()
+      set (CMAKE_VS_PLATFORM_NAME win32)
+    endif()
+  endif()
+
   if (TOOLCHAIN_BUILD_EXTERNALPROJECTS)
     if (${CMAKE_SIZEOF_VOID_P} EQUAL 8)
 
-      if (NOT CMAKE_VS_PLATFORM_NAME)
-        set (CMAKE_VS_PLATFORM_NAME x64)
-      endif()
-
       ExternalProject_Add(speex-src
-        GIT_REPOSITORY    https://github.com/bear101/speex.git
-        GIT_TAG           62ad6a6
+        GIT_REPOSITORY    https://github.com/xiph/speex.git
+        GIT_TAG           Speex-1.2.1
         UPDATE_COMMAND    ""
+        PATCH_COMMAND     git apply ${CMAKE_CURRENT_LIST_DIR}/0001-VS2015-proj.patch
+        COMMAND           git apply ${CMAKE_CURRENT_LIST_DIR}/0002-Renamed-solution-file-from-x86-to-Win32.patch
+        COMMAND           git apply ${CMAKE_CURRENT_LIST_DIR}/0003-Upgrade-to-VS2019-and-Windows-10-SDK.patch
         PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/speex
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE   TRUE
@@ -36,14 +44,13 @@ if (MSVC)
       ExternalProject_Get_Property(speex-src INSTALL_DIR)
     else()
 
-      if (NOT CMAKE_VS_PLATFORM_NAME)
-        set (CMAKE_VS_PLATFORM_NAME win32)
-      endif()
-
       ExternalProject_Add(speex-src
-        GIT_REPOSITORY    https://github.com/bear101/speex.git
-        GIT_TAG           62ad6a6
+        GIT_REPOSITORY    https://github.com/xiph/speex.git
+        GIT_TAG           Speex-1.2.1
         UPDATE_COMMAND    ""
+        PATCH_COMMAND     git apply ${CMAKE_CURRENT_LIST_DIR}/0001-VS2015-proj.patch
+        COMMAND           git apply ${CMAKE_CURRENT_LIST_DIR}/0002-Renamed-solution-file-from-x86-to-Win32.patch
+        COMMAND           git apply ${CMAKE_CURRENT_LIST_DIR}/0003-Upgrade-to-VS2019-and-Windows-10-SDK.patch
         PREFIX            ${TOOLCHAIN_BUILD_PREFIX}/speex
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE   TRUE

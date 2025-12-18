@@ -27,6 +27,8 @@
 #include <ace/INET_Addr.h>
 #include <ace/INet/HTTP_Status.h>
 #include <ace/SString.h>
+
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -36,6 +38,8 @@ std::vector<ACE_INET_Addr> DetermineHostAddress(const ACE_TString& host, int por
 int HttpGetRequest(const ACE_CString& url, std::string& result, ACE::HTTP::Status::Code* statusCode = nullptr);
 int HttpPostRequest(const ACE_CString& url, const char* data, int len,
                     const std::map<std::string,std::string>& headers,
+                    std::string& result, ACE::HTTP::Status::Code* statusCode = nullptr);
+int HttpPostRequest(const ACE_CString& url, const std::map<std::string,std::string>& unencodedformdata,
                     std::string& result, ACE::HTTP::Status::Code* statusCode = nullptr);
 std::string URLEncode(const std::string& utf8);
 

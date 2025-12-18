@@ -4096,7 +4096,7 @@ void MainWindow::slotClientNewInstance(bool /*checked=false*/)
     // load existing profiles
     QMap<QString, QString> profiles;
     QStringList profilenames;
-    const int MAX_PROFILES = 16;
+    const int MAX_PROFILES = 1000;
     int freeno = -1;
     for (int i = 1;i <= MAX_PROFILES;i++)
     {
@@ -6466,12 +6466,12 @@ void MainWindow::slotUpdateUI()
     ui.actionDesktopInput->setEnabled(userid>0);
     ui.actionMediaFile->setEnabled(userid>0);
     //intercept only works for admins
-    ui.actionInterceptUserMessages->setEnabled(userid>0);
-    ui.actionInterceptChannelMessages->setEnabled(userid>0);
-    ui.actionInterceptVoice->setEnabled(userid>0);
-    ui.actionInterceptVideo->setEnabled(userid>0);
-    ui.actionInterceptDesktop->setEnabled(userid>0);
-    ui.actionInterceptMediaFile->setEnabled(userid>0);
+    ui.actionInterceptUserMessages->setEnabled(userid>0 && me_admin);
+    ui.actionInterceptChannelMessages->setEnabled(userid>0 && me_admin);
+    ui.actionInterceptVoice->setEnabled(userid>0 && me_admin);
+    ui.actionInterceptVideo->setEnabled(userid>0 && me_admin);
+    ui.actionInterceptDesktop->setEnabled(userid>0 && me_admin);
+    ui.actionInterceptMediaFile->setEnabled(userid>0 && me_admin);
 
     ui.actionIncreaseVoiceVolume->setEnabled(userid>0 && user.nVolumeVoice < SOUND_VOLUME_MAX);
     ui.actionLowerVoiceVolume->setEnabled(userid>0 && user.nVolumeVoice > SOUND_VOLUME_MIN);
@@ -6514,7 +6514,7 @@ void MainWindow::slotUpdateUI()
     ui.actionPauseResumeStream->setEnabled(m_mfi && (m_mfi->nStatus == MFS_PLAYING || m_mfi->nStatus == MFS_PAUSED));
     ui.actionPauseResumeStream->setText((m_mfi && m_mfi->nStatus == MFS_PAUSED) ? tr("Resume Stream") : tr("&Pause Stream"));
     ui.actionUploadFile->setEnabled(m_myuseraccount.uUserRights & USERRIGHT_UPLOAD_FILES);
-    ui.actionDownloadFile->setEnabled(m_myuseraccount.uUserRights & USERRIGHT_DOWNLOAD_FILES);
+    ui.actionDownloadFile->setEnabled(m_myuseraccount.uUserRights & USERRIGHT_DOWNLOAD_FILES && filescount>0);
     ui.actionDeleteFile->setEnabled(filescount>0);
 
     //Users-menu items dependent on Channel
@@ -6544,7 +6544,7 @@ void MainWindow::slotUpdateUI()
 
     //Server-menu items
     ui.actionUserAccounts->setEnabled(auth);
-    ui.actionBannedUsers->setEnabled(me_op || (userrights & USERRIGHT_BAN_USERS));
+    ui.actionBannedUsers->setEnabled(userrights & USERRIGHT_BAN_USERS);
     ui.actionOnlineUsers->setEnabled(auth);
     ui.actionBroadcastMessage->setEnabled(auth && (userrights & USERRIGHT_TEXTMESSAGE_BROADCAST));
     ui.actionServerProperties->setEnabled(auth);

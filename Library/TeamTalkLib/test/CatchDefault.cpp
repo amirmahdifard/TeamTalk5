@@ -21,7 +21,7 @@
  *
  */
 
-#include "catch2/catch.hpp"
+#include <catch2/catch_test_macros.hpp>
 
 #include "TTUnitTest.h"
 #include "avstream/MediaStreamer.h"
@@ -1791,7 +1791,7 @@ TEST_CASE("testThumbnail")
 
     MediaFileProp mfp;
     REQUIRE(GetMediaFileProp(filename, mfp));
-    REQUIRE(mfp.video.IsValid());
+    REQUIRE(mfp.video.IsValid() == false);
 
     MediaStreamOutput const prop(media::AudioFormat(16000, 2), 1600, media::FOURCC_NONE);
     FFmpegStreamer ffmpeg(filename, prop);

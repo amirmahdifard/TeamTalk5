@@ -26,11 +26,8 @@
 
 #include "PacketLayout.h"
 
-#include <ace/Addr.h>
-#include <ace/Condition_Thread_Mutex.h>
 #include <ace/Event_Handler.h>
 #include <ace/INET_Addr.h>
-#include <ace/Message_Block.h>
 #include <ace/Message_Queue_T.h>
 #include <ace/Reactor.h>
 #include <ace/SOCK_Dgram.h>
@@ -38,12 +35,7 @@
 #include <set>
 #include <vector>
 
-
-using byte_t = unsigned char;
-
 namespace teamtalk {
-
-constexpr auto PACKETBUFFER = 0x10000;
 
 // https://da.wikipedia.org/wiki/Differentiated_Services
 constexpr auto IP_TOS_IGNORE = (0x00 << 2);
@@ -84,8 +76,8 @@ constexpr auto IP_TOS_MULTIMEDIA_VIDEO = (0x1e << 2);
         PacketHandler(ACE_Reactor* r);
         ~PacketHandler() override;
 
-        bool Open(const ACE_Addr &addr, int recv_buf, int send_buf);
-        bool Close();
+        bool Open(const ACE_INET_Addr &addr);
+        void Close();
 
         void AddListener(teamtalk::PacketListener* pListener);
         void RemoveListener(teamtalk::PacketListener* pListener);

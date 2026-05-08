@@ -334,100 +334,80 @@ extends AppCompatActivity
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         AlertDialog.Builder alert = new AlertDialog.Builder(this);
-        switch(item.getItemId()) {
-            case R.id.action_join : {
-                if (curchannel != null)
-                    joinChannel(curchannel);
+        int itemId = item.getItemId();
+        if (itemId == R.id.action_join) {
+            if (curchannel != null)
+                joinChannel(curchannel);
+        } else if (itemId == R.id.action_leave) {
+            leaveChannel();
+        } else if (itemId == R.id.action_upload) {
+            if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ?
+                requestMediaPermissions() :
+                Permissions.READ_EXTERNAL_STORAGE.request(this)) {
+                fileSelectionStart();
             }
-            break;
-            case R.id.action_leave : {
-                    leaveChannel();
-            }
-            break;
-            case R.id.action_upload : {
-                if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ?
-                    requestMediaPermissions() :
-                    Permissions.READ_EXTERNAL_STORAGE.request(this)) {
-                    fileSelectionStart();
-                }
-            }
-            break;
-            case R.id.action_broadcast:
-                alert.setTitle(R.string.action_broadcast);
-                alert.setMessage(R.string.text_broadcast_message);
-                final EditText input = new EditText(this);
-                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-                alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doTextMessage(new TextMessage() {{ nMsgType = TextMsgType.MSGTYPE_BROADCAST; szMessage = input.getText().toString(); }}));
-                alert.setNegativeButton(android.R.string.no, null);
-                alert.setView(input);
-                alert.show();
-                break;
-            case R.id.action_stream : {
-                int flags = getClient().getFlags();
-                if ((flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO) {
-                    getClient().stopStreamingMediaFileToChannel();
-                } else {
-                    Intent intent = new Intent(MainActivity.this, StreamMediaActivity.class);
-                    startActivity(intent);
-                }
-            }
-            break;
-            case R.id.action_edit : {
-                if (curchannel != null)
-                    editChannelProperties(curchannel);
-            }
-            break;
-
-            case R.id.action_newchannel : {
-                Intent intent = new Intent(MainActivity.this, ChannelPropActivity.class);
-
-                int parent_chan_id = getClient().getRootChannelID();
-                if(curchannel != null)
-                    parent_chan_id = curchannel.nChannelID;
-                intent = intent.putExtra(ChannelPropActivity.EXTRA_PARENTID, parent_chan_id);
-
-                startActivityForResult(intent, REQUEST_NEWCHANNEL);
-            }
-            break;
-            case R.id.action_settings : {
-                Intent intent = new Intent(MainActivity.this, PreferencesActivity.class);
+        } else if (itemId == R.id.action_broadcast) {
+            alert.setTitle(R.string.action_broadcast);
+            alert.setMessage(R.string.text_broadcast_message);
+            final EditText input = new EditText(this);
+            input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doTextMessage(new TextMessage() {{ nMsgType = TextMsgType.MSGTYPE_BROADCAST; szMessage = input.getText().toString(); }}));
+            alert.setNegativeButton(android.R.string.no, null);
+            alert.setView(input);
+            alert.show();
+        } else if (itemId == R.id.action_stream) {
+            int flags = getClient().getFlags();
+            if ((flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO) {
+                getClient().stopStreamingMediaFileToChannel();
+            } else {
+                Intent intent = new Intent(MainActivity.this, StreamMediaActivity.class);
                 startActivity(intent);
-                break;
             }
-            case R.id.action_online_users : {
-                Intent intent = new Intent(MainActivity.this, OnlineUsersActivity.class);
-                startActivity(intent);
-                break;
+        } else if (itemId == R.id.action_edit) {
+            if (curchannel != null)
+                editChannelProperties(curchannel);
+        } else if (itemId == R.id.action_newchannel) {
+            Intent intent = new Intent(MainActivity.this, ChannelPropActivity.class);
+
+            int parent_chan_id = getClient().getRootChannelID();
+            if(curchannel != null)
+                parent_chan_id = curchannel.nChannelID;
+            intent = intent.putExtra(ChannelPropActivity.EXTRA_PARENTID, parent_chan_id);
+
+            startActivityForResult(intent, REQUEST_NEWCHANNEL);
+        } else if (itemId == R.id.action_settings) {
+            Intent intent = new Intent(MainActivity.this, PreferencesActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.action_online_users) {
+            Intent intent = new Intent(MainActivity.this, OnlineUsersActivity.class);
+            startActivity(intent);
+        } else if (itemId == android.R.id.home) {
+            int currentPage = mViewPager.getCurrentItem();
+            Channel parentChannel = ((currentPage == SectionsPagerAdapter.CHANNELS_PAGE)
+                                     && (curchannel != null)
+                                     ) ?
+                getService().getChannels().get(curchannel.nParentID) :
+                null;
+            if (currentPage != SectionsPagerAdapter.CHANNELS_PAGE) {
+                mViewPager.setCurrentItem(SectionsPagerAdapter.CHANNELS_PAGE);
+            } else if ((curchannel != null)) {
+                setCurrentChannel(parentChannel);
+                channelsAdapter.notifyDataSetChanged();
             }
-            case android.R.id.home : {
-                int currentPage = mViewPager.getCurrentItem();
-                Channel parentChannel = ((currentPage == SectionsPagerAdapter.CHANNELS_PAGE)
-                                         && (curchannel != null)
-                                         ) ?
-                    getService().getChannels().get(curchannel.nParentID) :
-                    null;
-                if (currentPage != SectionsPagerAdapter.CHANNELS_PAGE) {
-                    mViewPager.setCurrentItem(SectionsPagerAdapter.CHANNELS_PAGE);
-                } else if ((curchannel != null)) {
-                    setCurrentChannel(parentChannel);
-                    channelsAdapter.notifyDataSetChanged();
-                }
-                else if (filesAdapter.getActiveTransfersCount() > 0) {
-                    alert.setMessage(R.string.disconnect_alert);
-                    alert.setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {
-                        filesAdapter.cancelAllTransfers();
-                        finish();
-                    });
-                    alert.setNegativeButton(android.R.string.cancel, null);
-                    alert.show();
-                }
-                else {
+            else if (filesAdapter.getActiveTransfersCount() > 0) {
+                alert.setMessage(R.string.disconnect_alert);
+                alert.setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {
+                    filesAdapter.cancelAllTransfers();
                     finish();
-                }
-                break;
+                });
+                alert.setNegativeButton(android.R.string.cancel, null);
+                alert.show();
             }
-            default :
-                return super.onOptionsItemSelected(item);
+            else {
+                finish();
+            }
+        } else {
+            return super.onOptionsItemSelected(item);
         }
         return true;
     }
@@ -1230,9 +1210,7 @@ private EditText newmsg;
 
             Object item = getItem(position);
 
-            if(item instanceof Channel) {
-
-                final Channel channel = (Channel) item;
+            if(item instanceof Channel channel) {
 
                 switch (getItemViewType(position)) {
                     case PARENT_CHANNEL_VIEW_TYPE :
@@ -1285,7 +1263,7 @@ private EditText newmsg;
 
                         if (channel.nMaxUsers > 0) {
                             int population = Utils.getUsers(channel.nChannelID, getService().getUsers()).size();
-                            ((TextView)convertView.findViewById(R.id.population)).setText((population > 0) ? String.format("(%d)", population) : "");
+                            ((TextView)convertView.findViewById(R.id.population)).setText((population > 0) ? String.format(Locale.ROOT, "(%d)", population) : "");
                         }
 
                         break;
@@ -1301,14 +1279,13 @@ private EditText newmsg;
                         break;
                 }
             }
-            else if(item instanceof User) {
+            else if(item instanceof User user) {
                 if (convertView == null ||
                     convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
                 ImageView usericon = convertView.findViewById(R.id.usericon);
                 TextView nickname = convertView.findViewById(R.id.nickname);
                 TextView status = convertView.findViewById(R.id.status);
-                final User user = (User) item;
                 String name = Utils.getDisplayName(getBaseContext(), user);
                 nickname.setText(name);
                 status.setText(user.szStatusMsg);
@@ -1417,7 +1394,7 @@ private EditText newmsg;
 
                     String str;
                     if(stats.nUdpPingTimeMs >= 0) {
-                        str = String.format("%1$d", stats.nUdpPingTimeMs); 
+                        str = String.format(Locale.ROOT, "%1$d", stats.nUdpPingTimeMs);
                         ping.setText(getString(R.string.label_ping) + " " + str);
                         
                         if(stats.nUdpPingTimeMs > 250) {
@@ -1426,9 +1403,9 @@ private EditText newmsg;
                         else {
                             ping.setTextColor(defcolor);
                         }
-                    }                    
-                    
-                    str = String.format("%1$d/%2$d KB", totalrx/ 1024, totaltx / 1024);
+                    }
+
+                    str = String.format(Locale.ROOT, "%1$d/%2$d KB", totalrx/ 1024, totaltx / 1024);
                     total.setText(getString(R.string.label_rxtx) + " " + str);
                     
                     prev_stats = stats;
@@ -1446,15 +1423,13 @@ private EditText newmsg;
     public void onItemClick(AdapterView< ? > l, View v, int position, long id) {
 
         Object item = channelsAdapter.getItem(position);
-        if(item instanceof User) {
-            User user = (User)item;
+        if(item instanceof User user) {
             Intent intent = new Intent(this, UserPropActivity.class);
             // TODO: check 'curchannel' for null
             startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID),
                                    REQUEST_EDITUSER);
         }
-        else if(item instanceof Channel) {
-            Channel channel = (Channel) item;
+        else if(item instanceof Channel channel) {
             setCurrentChannel((channel.nChannelID > 0) ? channel : null);
             channelsAdapter.notifyDataSetChanged();
         }
@@ -1511,88 +1486,72 @@ private EditText newmsg;
     @Override
     public boolean onMenuItemClick(MenuItem item) {
         AlertDialog.Builder alert = new AlertDialog.Builder(this);
-        switch (item.getItemId()) {
-        case R.id.action_banchan:
+        int itemId = item.getItemId();
+        if (itemId == R.id.action_banchan) {
             alert.setMessage(getString(R.string.ban_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
                 getClient().doBanUser(selectedUser.nUserID, selectedUser.nChannelID);
                 getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID);
             });
-
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-            break;
-        case R.id.action_bansrv:
+        } else if (itemId == R.id.action_bansrv) {
             alert.setMessage(getString(R.string.ban_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
                 getClient().doBanUser(selectedUser.nUserID, 0);
                 getClient().doKickUser(selectedUser.nUserID, 0);
             });
-
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-            break;
-        case R.id.action_edit:
+        } else if (itemId == R.id.action_edit) {
             editChannelProperties(selectedChannel);
-            break;
-        case R.id.action_edituser: {
+        } else if (itemId == R.id.action_edituser) {
             Intent intent = new Intent(this, UserPropActivity.class);
             startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, selectedUser.nUserID),
                                    REQUEST_EDITUSER);
-        }
-        break;
-        case R.id.action_message: {
+        } else if (itemId == R.id.action_message) {
             Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
             startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, selectedUser.nUserID));
-        }
-        break;
-        case R.id.action_kickchan:
+        } else if (itemId == R.id.action_kickchan) {
             alert.setMessage(getString(R.string.kick_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
-
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-            break;
-        case R.id.action_kicksrv:
+        } else if (itemId == R.id.action_kicksrv) {
             alert.setMessage(getString(R.string.kick_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doKickUser(selectedUser.nUserID, 0));
-
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-            break;
-            case R.id.action_makeop:
-                UserAccount myuseraccount = new UserAccount();
-                getClient().getMyUserAccount(myuseraccount);
-                if ((myuseraccount.uUserRights & UserRight.USERRIGHT_OPERATOR_ENABLE) != UserRight.USERRIGHT_NONE) {
-                    getClient().doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true);
-                    break;
-                }
-                alert.setTitle(getClient().isChannelOperator(selectedUser.nUserID , selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
+        } else if (itemId == R.id.action_makeop) {
+            UserAccount myuseraccount = new UserAccount();
+            getClient().getMyUserAccount(myuseraccount);
+            if ((myuseraccount.uUserRights & UserRight.USERRIGHT_OPERATOR_ENABLE) != UserRight.USERRIGHT_NONE) {
+                getClient().doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, !getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID));
+            } else {
+                alert.setTitle(getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID) ? R.string.action_revoke_operator : R.string.action_make_operator);
                 alert.setMessage(R.string.text_operator_password);
                 final EditText input = new EditText(this);
                 input.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_CLASS_TEXT);
-                alert.setPositiveButton(android.R.string.yes, ((dialog, whichButton) -> getClient().doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID)? false: true)));
+                alert.setPositiveButton(android.R.string.yes, ((dialog, whichButton) -> getClient().doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), !getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID))));
                 alert.setNegativeButton(android.R.string.no, null);
                 alert.setView(input);
                 alert.show();
-                break;
-        case R.id.action_move:
+            }
+        } else if (itemId == R.id.action_move) {
             for (Integer userID : userIDS) {
                 getClient().doMoveUser(userID, selectedChannel.nChannelID);
             }
             userIDS.clear();
-            break;
-        case R.id.action_select:
-    if (userIDS.contains(selectedUser.nUserID)) {
-        userIDS.remove((Integer) selectedUser.nUserID);
-    } else {
-        userIDS.add(selectedUser.nUserID);
-    }
-    accessibilityAssistant.lockEvents();
-    channelsAdapter.notifyDataSetChanged();
-    accessibilityAssistant.unlockEvents();
-    break;
-        case R.id.action_remove: {
+        } else if (itemId == R.id.action_select) {
+            if (userIDS.contains(selectedUser.nUserID)) {
+                userIDS.remove((Integer) selectedUser.nUserID);
+            } else {
+                userIDS.add(selectedUser.nUserID);
+            }
+            accessibilityAssistant.lockEvents();
+            channelsAdapter.notifyDataSetChanged();
+            accessibilityAssistant.unlockEvents();
+        } else if (itemId == R.id.action_remove) {
             alert.setMessage(getString(R.string.channel_remove_confirmation, selectedChannel.szName));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
                 if (getClient().doRemoveChannel(selectedChannel.nChannelID) <= 0)
@@ -1601,13 +1560,9 @@ private EditText newmsg;
                                              selectedChannel.szName),
                                    Toast.LENGTH_LONG).show();
             });
-
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-            break;
-        }
-
-        default:
+        } else {
             return false;
         }
         return true;
@@ -2062,6 +2017,7 @@ private EditText newmsg;
 
     @Override
     public void onCmdUserJoinedChannel(User user) {
+
         users.put(user.nUserID, user);
         
         if(user.nUserID == getClient().getMyUserID()) {
@@ -2081,7 +2037,7 @@ private EditText newmsg;
             //other user joined current channel
         }
         
-        if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
+        if(mychannel != null && mychannel.nChannelID == user.nChannelID) {
             //event took place in current channel
             
             if(user.nUserID != getClient().getMyUserID()) {
@@ -2112,6 +2068,7 @@ private EditText newmsg;
 
     @Override
     public void onCmdUserLeftChannel(int channelid, User user) {
+
         users.put(user.nUserID, user);
         
         if(user.nUserID == getClient().getMyUserID()) {
@@ -2130,10 +2087,11 @@ private EditText newmsg;
             accessibilityAssistant.unlockEvents();
         }
         
-        if(curchannel != null && curchannel.nChannelID == channelid) {
+        if(mychannel != null && mychannel.nChannelID == channelid) {
             //event took place in current channel
             
             accessibilityAssistant.lockEvents();
+            textmsgAdapter.notifyDataSetChanged();
             channelsAdapter.notifyDataSetChanged();
             if (getClient().getMyChannelID() == channelid) {
                     if (sounds.get(SOUND_USERLEFT) != 0)

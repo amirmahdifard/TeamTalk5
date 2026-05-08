@@ -42,6 +42,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -50,6 +51,7 @@
 #include <queue>
 #include <regex>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #if defined(UNICODE)
@@ -384,6 +386,7 @@ void RunWizard(teamtalk::ServerXML& xmlSettings)
     int udpport = DEFAULT_UDPPORT;
     int max_login_attempts = 0;
     int logindelay = 0;
+    bool upnp = false;
 
     servername = Utf8ToUnicode(xmlSettings.GetServerName().c_str());
     motd = Utf8ToUnicode(xmlSettings.GetMessageOfTheDay().c_str());
@@ -400,6 +403,7 @@ void RunWizard(teamtalk::ServerXML& xmlSettings)
     max_login_attempts = xmlSettings.GetMaxLoginAttempts();
     max_logins_per_ip = xmlSettings.GetMaxLoginsPerIP();
     logindelay = xmlSettings.GetLoginDelay();
+    upnp = xmlSettings.GetUPnP();
 
 #if defined(ENABLE_TEAMTALKPRO)
     certfile = Utf8ToUnicode(xmlSettings.GetCertificateFile().c_str());
@@ -482,6 +486,8 @@ void RunWizard(teamtalk::ServerXML& xmlSettings)
     tcpport = PrintGetInt(tcpport);
     cout << "Server should bind to the following UDP port: ";
     udpport = PrintGetInt(udpport);
+    cout << "Enable UPnP port forwarding (automatically open TCP/UDP ports on router)? ";
+    upnp = PrintGetBool(upnp);
     cout << "Bind to specific IP-addresses? (required for IPv6) ";
     if (PrintGetBool(!bindips.empty()))
     {
@@ -680,6 +686,7 @@ void RunWizard(teamtalk::ServerXML& xmlSettings)
 
     cout << "Server will bind to TCP port " << tcpport << endl;
     cout << "Server will bind to UDP port " << udpport << endl;
+    cout << "UPnP port forwarding: " << (upnp ? "enabled" : "disabled") << endl;
     cout << "Server will bind to IP-address: " << endl;
     for (const auto& ip : bindips)
         cout << "\t- " << ip << endl;
@@ -726,6 +733,7 @@ void RunWizard(teamtalk::ServerXML& xmlSettings)
         xmlSettings.SetBindIPs(bindips);
         xmlSettings.SetHostTcpPort(tcpport);
         xmlSettings.SetHostUdpPort(udpport);
+        xmlSettings.SetUPnP(upnp);
 #if defined(ENABLE_TEAMTALKPRO)
         xmlSettings.SetCertificateFile(UnicodeToUtf8(certfile).c_str());
         xmlSettings.SetPrivateKeyFile(UnicodeToUtf8(keyfile).c_str());
@@ -914,7 +922,7 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
     xmlSettings.GetBearWareWebLogin(bwidUtf8, tokenUtf8);
     ACE_TString bwid = Utf8ToUnicode(bwidUtf8.c_str());
     ACE_TString token = Utf8ToUnicode(tokenUtf8.c_str());
-
+    static auto sleepTimeSec = 1ul;
     while (token.empty())
     {
         cout << TEAMTALK_NAME << " requires a BearWare.dk WebLogin" << endl;
@@ -953,9 +961,11 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
         case WEBLOGIN_SERVER_UNAVAILABLE :
         case WEBLOGIN_SERVER_INCOMPATIBLE :
             cout << "Unable to contact BearWare.dk WebLogin" << endl;
+            std::this_thread::sleep_for(std::chrono::seconds(sleepTimeSec *= 2));
             break;
         case WEBLOGIN_FAILED :
             cout << "Login failed. Please try again." << endl;
+            std::this_thread::sleep_for(std::chrono::seconds(sleepTimeSec *= 2));
             break;
         }
     }
@@ -975,12 +985,14 @@ bool LoginBearWare(teamtalk::ServerXML& xmlSettings)
             xmlSettings.SetBearWareWebLogin(UnicodeToUtf8(bwid).c_str(), "");
             xmlSettings.SaveFile();
         }
+        std::this_thread::sleep_for(std::chrono::seconds(sleepTimeSec *= 2));
         return false;
     case WEBLOGIN_SERVER_UNAVAILABLE :
     case WEBLOGIN_SERVER_INCOMPATIBLE :
         os.str(ACE_TEXT(""));
         os << "BearWare.dk WebLogin is currently unavailable. Continuing... ";
         TT_SYSLOG(os.str().c_str());
+        std::this_thread::sleep_for(std::chrono::seconds(sleepTimeSec *= 2));
         break;
     case WEBLOGIN_SUCCESS :
         break;

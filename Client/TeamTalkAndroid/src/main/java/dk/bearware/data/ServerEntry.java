@@ -59,7 +59,7 @@ public class ServerEntry {
     public String nickname = "";
     public String statusmsg = "";
     public String channel = "", chanpasswd = "";
-    public boolean rememberLastChannel = true;
+    public boolean rememberLastChannel = false;
     public boolean encrypted = false;
     public String cacert = "", clientcert = "", clientcertkey = "";
     public boolean verifypeer = false;
@@ -67,4 +67,5 @@ public class ServerEntry {
 
     public int stats_usercount = 0;
     public String stats_motd = "", stats_country = "";
+    public String joincode = "";
 }

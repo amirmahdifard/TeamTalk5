@@ -212,7 +212,7 @@ public class PreferencesActivity extends PreferenceActivity implements TeamTalkC
             getClient().doChangeStatus(statusmode, statusmsg);
         }
         
-        int mf_volume = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_MEDIAFILE_VOLUME, 100);
+        int mf_volume = prefs.getInt(Preferences.PREF_SOUNDSYSTEM_MEDIAFILE_VOLUME, 50);
         mf_volume = Utils.refVolume(mf_volume);
         for(User u: getService().getUsers().values()) {
             getClient().setUserVolume(u.nUserID, StreamType.STREAMTYPE_MEDIAFILE_AUDIO, mf_volume);
@@ -268,10 +268,9 @@ public class PreferencesActivity extends PreferenceActivity implements TeamTalkC
     private static final Preference.OnPreferenceChangeListener sBindPreferenceSummaryToValueListener = (preference, value) -> {
         String stringValue = value.toString();
 
-        if(preference instanceof ListPreference) {
+        if(preference instanceof ListPreference listPreference) {
             // For list preferences, look up the correct display value in
             // the preference's 'entries' list.
-            ListPreference listPreference = (ListPreference) preference;
             int index = listPreference.findIndexOfValue(stringValue);
 
             // Set the summary to reflect the new value.
@@ -421,7 +420,7 @@ public class PreferencesActivity extends PreferenceActivity implements TeamTalkC
             enginePrefs.setEntryValues(values.toArray(new CharSequence[engines.size()]));
 
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.O) {
-                CheckBoxPreference mTtsPref = (CheckBoxPreference) findPreference("a11y_volume");
+                CheckBoxPreference mTtsPref = (CheckBoxPreference) findPreference("pref_a11y_volume");
                 PreferenceCategory mTtsCat = (PreferenceCategory) findPreference("tts_def");
                 mTtsCat.removePreference(mTtsPref);
             }

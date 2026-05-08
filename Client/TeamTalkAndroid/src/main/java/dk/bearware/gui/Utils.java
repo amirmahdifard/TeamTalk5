@@ -318,7 +318,7 @@ public class Utils {
             return 0;
     }
 
-    /* @return User ID -> StreamType */
+    /** @return User ID -> StreamType */
     public static Map<Integer, Integer> transmitUsersToMap(int[][] transmitUsers) {
         Map<Integer, Integer> map = new HashMap<>();
         for (int[] entry : transmitUsers) {
@@ -553,6 +553,9 @@ public class Utils {
                 catch(NumberFormatException e) {
                     continue;
                 }
+                NodeList joincodenode = hostelement.getElementsByTagName("joincode");
+                if (joincodenode.getLength() > 0)
+                    entry.joincode = joincodenode.item(0).getTextContent();
                 NodeList listingnode = hostelement.getElementsByTagName("listing");
                 if (listingnode.getLength() > 0) {
                     switch (listingnode.item(0).getTextContent()) {

@@ -27,10 +27,14 @@ endif()
 find_package (Qt6 COMPONENTS Widgets Xml Network Multimedia TextToSpeech)
 
 if (WIN32)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/WinToast)
-  set(WINTOAST_SOURCES
-    3rdparty/WinToast/wintoastlib.cpp 3rdparty/WinToast/wintoastlib.h
+  include(FetchContent)
+  FetchContent_Declare(
+    WinToast
+    GIT_REPOSITORY https://github.com/mohabouje/WinToast.git
+    GIT_TAG        v1.3.2
   )
+  set(WINTOASTLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(WinToast)
 endif()
 
 if (Qt5_FOUND OR Qt6_FOUND)
@@ -58,7 +62,7 @@ if (Qt5_FOUND OR Qt6_FOUND)
 
   if (Qt6_FOUND)
     set (CMAKE_CXX_STANDARD 17)
-    set (CMAKE_OSX_DEPLOYMENT_TARGET 12.0) # Qt 6.9.2 requires
+    set (CMAKE_OSX_DEPLOYMENT_TARGET 13.0) # Qt 6.10.0 requires
   else()
     set (CMAKE_CXX_STANDARD 17)
   endif()
@@ -125,9 +129,6 @@ if (Qt5_FOUND OR Qt6_FOUND)
     resources.qrc mainwindow.rc
     )
 
-if (WIN32)
-  list(APPEND QTTEAMTALK_SOURCES ${WINTOAST_SOURCES})
-endif()
 
   if (Qt6_FOUND)
     set (TEAMTALK_LINK_FLAGS Qt6::Widgets Qt6::Xml Qt6::Network Qt6::Multimedia Qt6::TextToSpeech)
@@ -196,12 +197,12 @@ endif()
 
           add_custom_target (QtTeamTalk5-windeploy-release ALL
             COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt"
-            COMMAND ${WINDEPLOYQT_EXE_PATH} --no-quick-import --no-translations --no-system-d3d-compiler --no-virtualkeyboard ${QT_DEPLOY_ARGS} --no-opengl-sw --release --dir "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt" "$<TARGET_FILE_DIR:${TEAMTALK_TARGET}>/$<TARGET_FILE_NAME:${TEAMTALK_TARGET}>"
+            COMMAND ${WINDEPLOYQT_EXE_PATH} --no-quick-import --no-translations --no-system-d3d-compiler ${QT_DEPLOY_ARGS} --no-opengl-sw --release --dir "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt" "$<TARGET_FILE_DIR:${TEAMTALK_TARGET}>/$<TARGET_FILE_NAME:${TEAMTALK_TARGET}>"
             DEPENDS ${TEAMTALK_TARGET})
 
           add_custom_target (QtTeamTalk5-windeploy-debug
             COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt-debug"
-            COMMAND ${WINDEPLOYQT_EXE_PATH} --no-quick-import --no-translations --no-system-d3d-compiler --no-virtualkeyboard ${QT_DEPLOY_ARGS} --no-opengl-sw --debug --dir "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt-debug" "$<TARGET_FILE_DIR:${TEAMTALK_TARGET}>/$<TARGET_FILE_NAME:${TEAMTALK_TARGET}>"
+            COMMAND ${WINDEPLOYQT_EXE_PATH} --no-quick-import --no-translations --no-system-d3d-compiler ${QT_DEPLOY_ARGS} --no-opengl-sw --debug --dir "${CMAKE_CURRENT_SOURCE_DIR}/windeployqt-debug" "$<TARGET_FILE_DIR:${TEAMTALK_TARGET}>/$<TARGET_FILE_NAME:${TEAMTALK_TARGET}>"
             DEPENDS ${TEAMTALK_TARGET})
 
           # OpenSSL DLLs are not deployed by windeployqt.exe so we need to copy them manually.
@@ -211,8 +212,8 @@ endif()
             find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-3-x64.dll PATHS "C:/Program Files/OpenSSL/bin")
             find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-3-x64.dll PATHS "C:/Program Files/OpenSSL/bin")
           else()
-            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-3.dll)
-            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-3.dll)
+            find_file (QT_OPENSSL_LIBCRYPTODLL_PATH NAMES libcrypto-3.dll PATHS "C:/Program Files (x86)/OpenSSL/bin")
+            find_file (QT_OPENSSL_LIBSSLDLL_PATH NAMES libssl-3.dll PATHS "C:/Program Files (x86)/OpenSSL/bin")
           endif()
           if (QT_OPENSSL_LIBCRYPTODLL_PATH-NOTFOUND OR QT_OPENSSL_LIBSSLDLL_PATH-NOTFOUND)
             message (WARNING "Cannot find OpenSSL 3.x DLLs for Qt deployed DLLs")
@@ -238,6 +239,10 @@ endif()
       target_link_options(${TEAMTALK_TARGET} PRIVATE -sectcreate __TEXT __info_plist ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
     else()
       add_executable (${TEAMTALK_TARGET} ${QTTEAMTALK_SOURCES})
+    endif()
+
+    if (WIN32)
+      target_link_libraries (${TEAMTALK_TARGET} WinToast)
     endif()
 
     if (BUILD_TEAMTALK_LIBRARY_DLL)

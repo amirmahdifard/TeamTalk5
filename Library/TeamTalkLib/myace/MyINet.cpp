@@ -47,55 +47,21 @@
 #include <memory>
 #include <sstream>
 
-std::vector<ACE_INET_Addr> DetermineHostAddress(const ACE_TString& host, int port)
+std::vector<ACE_INET_Addr> DetermineHostAddress(const ACE_TString& host, uint16_t port)
 {
     std::vector<ACE_INET_Addr> result;
 
-#if ACE_MAJOR_VERSION < 6 || (ACE_MAJOR_VERSION == 6 && ACE_MINOR_VERSION < 4)
-    result.resize(1);
-
-    int address_family = AF_INET;
-    result[0] = ACE_INET_Addr(port, host.c_str(), address_family);
-    if (result[0].is_any())
-    {
-        address_family = AF_INET6;
-        result[0] = ACE_INET_Addr(port, host.c_str(), address_family);
-    }
-
-#else
-    bool const encode = true;
-    addrinfo hints;
-    ACE_OS::memset(&hints, 0, sizeof hints);
+    addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
-    // The ai_flags used to contain AI_ADDRCONFIG as well but that prevented
-    // lookups from completing if there is no, or only a loopback, IPv6
-    // interface configured. See Bugzilla 4211 for more info.
-
-    hints.ai_flags = AI_V4MAPPED;
-#if defined(ACE_HAS_IPV6) && defined(AI_ALL)
-    // Without AI_ALL, Windows machines exhibit inconsistent behaviors on
-    // difference machines we have tested.
-    hints.ai_flags |= AI_ALL;
-#endif
-
-    // Note - specify the socktype here to avoid getting multiple entries
-    // returned with the same address for different socket types or
-    // protocols. If this causes a problem for some reason (an address that's
-    // available for TCP but not UDP, or vice-versa) this will need to change
-    // back to unrestricted hints and weed out the duplicate addresses by
-    // searching this->inet_addrs_ which would slow things down.
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_socktype = SOCK_STREAM; // ensure no duplicate IP-addresses
 
     addrinfo* res = nullptr;
-
-    const int ADDRINFOERROR = ACE_OS::getaddrinfo(UnicodeToUtf8(host).c_str(), nullptr, &hints, &res);
-
-    if (ADDRINFOERROR != 0)
+    const int addrinfoerror = ACE_OS::getaddrinfo(UnicodeToUtf8(host).c_str(), nullptr, &hints, &res);
+    if (addrinfoerror != 0)
     {
-        errno = ADDRINFOERROR;
+        MYTRACE(ACE_TEXT("Failed to resolve %s. Error: %d"), host.c_str(), addrinfoerror);
         return {};
     }
-
 
     for (addrinfo* curr = res; curr != nullptr; curr = curr->ai_next)
     {
@@ -105,27 +71,24 @@ std::vector<ACE_INET_Addr> DetermineHostAddress(const ACE_TString& host, int por
 #if defined (ACE_HAS_IPV6)
             sockaddr_in6 in6_;
 #endif /* ACE_HAS_IPV6 */
-        };
+        } addr{};
 
-        ip46 addr;
         ACE_OS::memcpy(&addr, curr->ai_addr, curr->ai_addrlen);
 #ifdef ACE_HAS_IPV6
         if (curr->ai_family == AF_INET6)
         {
-            addr.in6_.sin6_port = encode ? ACE_NTOHS(port) : port;
+            addr.in6_.sin6_port = htons(port);
             result.emplace_back(reinterpret_cast<const sockaddr_in*>(&addr.in6_), sizeof(addr.in6_));
         }
         else
 #endif
         {
-            addr.in4_.sin_port = encode ? ACE_NTOHS(port) : port;
+            addr.in4_.sin_port = htons(port);
             result.emplace_back(reinterpret_cast<const sockaddr_in*>(&addr.in4_), sizeof(addr.in4_));
         }
     }
 
     ACE_OS::freeaddrinfo(res);
-
-#endif /* ACE_MAJOR_VERSION */
 
     return result;
 }

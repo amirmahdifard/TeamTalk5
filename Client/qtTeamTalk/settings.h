@@ -82,7 +82,7 @@
 #define SETTINGS_DISPLAY_VOICE_ACT_SLIDER           "display/voice-act-slider"
 #define SETTINGS_DISPLAY_VOICE_ACT_SLIDER_DEFAULT   true
 #define SETTINGS_DISPLAY_CHAT_HISTORY_LISTVIEW      "display/chat-history-as-listview"
-#define SETTINGS_DISPLAY_CHAT_HISTORY_LISTVIEW_DEFAULT isScreenReaderActive()
+#define SETTINGS_DISPLAY_CHAT_HISTORY_LISTVIEW_DEFAULT false
 #define SETTINGS_DISPLAY_USERSCOUNT                 "display/userscount"
 #define SETTINGS_DISPLAY_USERSCOUNT_DEFAULT         true
 #define SETTINGS_DISPLAY_SHOWUSERNAME               "display/showusername"
@@ -168,7 +168,8 @@
                                                         STATUSBAR_FILE_REMOVE | \
                                                         STATUSBAR_SAVE_SERVER_CONFIG | \
                                                         STATUSBAR_START_RECORD | \
-                                                        STATUSBAR_TRANSMISSION_BLOCKED)
+                                                        STATUSBAR_TRANSMISSION_BLOCKED | \
+                                                        STATUSBAR_SOUND_DEVICE_DETECTED)
 #define SETTINGS_DISPLAY_CHATTEMPLATES_MODEL_HEADER    "display/chat-templates-model-header"
 #define SETTINGS_DISPLAY_CHATTEMPLATESDLG_SIZE          "display/chat-templates-dialog-size"
 #define SETTINGS_DISPLAY_SERVERLOG_EVENTS_HEADER    "display/serverlog-events-header"

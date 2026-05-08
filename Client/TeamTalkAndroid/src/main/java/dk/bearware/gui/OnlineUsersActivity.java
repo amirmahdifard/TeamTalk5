@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import dk.bearware.ClientEvent;
@@ -126,52 +127,49 @@ public class OnlineUsersActivity extends AppCompatActivity implements
                 onlineActions.inflate(R.menu.online_actions);
 
                 onlineActions.setOnMenuItemClickListener(item -> {
-                    switch (item.getItemId()) {
-                        case R.id.action_edituser: {
-                            Intent intent = new Intent(OnlineUsersActivity.this, UserPropActivity.class);
-                            startActivity(intent.putExtra(UserPropActivity.EXTRA_USERID, selectedUser.nUserID));
+                    int itemId = item.getItemId();
+                    if (itemId == R.id.action_edituser) {
+                        Intent intent = new Intent(OnlineUsersActivity.this, UserPropActivity.class);
+                        startActivity(intent.putExtra(UserPropActivity.EXTRA_USERID, selectedUser.nUserID));
+                        return true;
+                    } else if (itemId == R.id.action_message) {
+                        Intent intent = new Intent(OnlineUsersActivity.this, TextMessageActivity.class);
+                        startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, selectedUser.nUserID));
+                        return true;
+                    } else if (itemId == R.id.action_banchan) {
+                        confirmAction(alert, R.string.ban_confirmation, selectedUser,
+                                () -> banAndKick(selectedUser, selectedUser.nChannelID));
+                        return true;
+                    } else if (itemId == R.id.action_bansrv) {
+                        confirmAction(alert, R.string.ban_confirmation, selectedUser,
+                                () -> banAndKick(selectedUser, 0));
+                        return true;
+                    } else if (itemId == R.id.action_kickchan) {
+                        confirmAction(alert, R.string.kick_confirmation, selectedUser,
+                                () -> getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
+                        return true;
+                    } else if (itemId == R.id.action_kicksrv) {
+                        confirmAction(alert, R.string.kick_confirmation, selectedUser,
+                                () -> getClient().doKickUser(selectedUser.nUserID, 0));
+                        return true;
+                    } else if (itemId == R.id.action_makeop) {
+                        boolean isOp = getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID);
+                        if ((myuseraccount.uUserRights & UserRight.USERRIGHT_OPERATOR_ENABLE) != UserRight.USERRIGHT_NONE) {
+                            getClient().doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, !isOp);
+                            return true;
                         }
-                            return true;
-                        case R.id.action_message: {
-                            Intent intent = new Intent(OnlineUsersActivity.this, TextMessageActivity.class);
-                            startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, selectedUser.nUserID));
-                        }
-                            return true;
-                        case R.id.action_banchan:
-                confirmAction(alert, R.string.ban_confirmation, selectedUser,
-                        () -> banAndKick(selectedUser, selectedUser.nChannelID));
-                            return true;
-                        case R.id.action_bansrv:
-                confirmAction(alert, R.string.ban_confirmation, selectedUser,
-                        () -> banAndKick(selectedUser, 0));
-                            return true;
-                        case R.id.action_kickchan:
-                confirmAction(alert, R.string.kick_confirmation, selectedUser,
-                        () -> getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
-                            return true;
-                        case R.id.action_kicksrv:
-                confirmAction(alert, R.string.kick_confirmation, selectedUser,
-                        () -> getClient().doKickUser(selectedUser.nUserID, 0));
-                            return true;
-                        case R.id.action_makeop:
-                boolean isOp = getClient().isChannelOperator(selectedUser.nUserID, selectedUser.nChannelID);
-                            if ((myuseraccount.uUserRights & UserRight.USERRIGHT_OPERATOR_ENABLE) != UserRight.USERRIGHT_NONE) {
-                                getClient().doChannelOp(selectedUser.nUserID, selectedUser.nChannelID, !isOp);
-                                return true;
-                            }
-                            alert.setTitle(!isOp ? R.string.action_revoke_operator : R.string.action_make_operator);
-                            alert.setMessage(R.string.text_operator_password);
-                            final EditText input = new EditText(OnlineUsersActivity.this);
-                            input.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_CLASS_TEXT);
-                            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) ->
-                                    getClient().doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), !isOp));
-                            alert.setNegativeButton(android.R.string.no, null);
-                            alert.setView(input);
-                            alert.show();
-                            return true;
-
-                        default:
-                            return false;
+                        alert.setTitle(!isOp ? R.string.action_revoke_operator : R.string.action_make_operator);
+                        alert.setMessage(R.string.text_operator_password);
+                        final EditText input = new EditText(OnlineUsersActivity.this);
+                        input.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_CLASS_TEXT);
+                        alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) ->
+                                getClient().doChannelOpEx(selectedUser.nUserID, selectedUser.nChannelID, input.getText().toString(), !isOp));
+                        alert.setNegativeButton(android.R.string.no, null);
+                        alert.setView(input);
+                        alert.show();
+                        return true;
+                    } else {
+                        return false;
                     }
                 });
 
@@ -228,7 +226,7 @@ public class OnlineUsersActivity extends AppCompatActivity implements
     }
 
     private void sortAndNotifyDataSetChanged() {
-        onlineUsers.sort(Comparator.comparing(u -> u.szNickname.toLowerCase()));
+        onlineUsers.sort(Comparator.comparing(u -> u.szNickname.toLowerCase(Locale.ROOT)));
         adapter.notifyDataSetChanged();
     }
 
@@ -311,7 +309,7 @@ public class OnlineUsersActivity extends AppCompatActivity implements
                 convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
             }
 
-            TextView textView = (TextView) convertView.findViewById(android.R.id.text1);
+            TextView textView = convertView.findViewById(android.R.id.text1);
             User user = getItem(position);
 
             if (user != null) {

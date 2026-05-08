@@ -29,6 +29,7 @@ import android.util.Log;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import dk.bearware.TeamTalkBase;
 
@@ -77,12 +78,11 @@ public class AppInfo {
     }
 
     public static String getBearWareTokenUrl(Context context, String username, String password) {
-
         try {
-            username = URLEncoder.encode(username, "utf-8");
-            password = URLEncoder.encode(password, "utf-8");
+            username = URLEncoder.encode(username, "UTF-8");
+            password = URLEncoder.encode(password, "UTF-8");
         } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Unable to encode username/password: " + e);
+            Log.e(TAG, "Failed to encode username/password", e);
         }
         String urlToRead = "https://www.bearware.dk/teamtalk/weblogin.php?" + getDefautlUrlArgs(context) +
                 "&service=bearware&action=auth&username=" + username + "&password=" + password;
@@ -90,13 +90,12 @@ public class AppInfo {
     }
 
     public static String getBearWareAccessTokenUrl(Context context, String username, String token, String accesstoken) {
-
         try {
-            username = URLEncoder.encode(username, "utf-8");
-            token = URLEncoder.encode(token, "utf-8");
-            accesstoken = URLEncoder.encode(accesstoken, "utf-8");
+            username = URLEncoder.encode(username, "UTF-8");
+            token = URLEncoder.encode(token, "UTF-8");
+            accesstoken = URLEncoder.encode(accesstoken, "UTF-8");
         } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Unable to encode username/token: " + e);
+            Log.e(TAG, "Failed to encode authentication parameters", e);
         }
         String urlToRead = "https://www.bearware.dk/teamtalk/weblogin.php?" + getDefautlUrlArgs(context) +
                 "&service=bearware&action=clientauth&username=" + username + "&token=" + token +
@@ -104,4 +103,14 @@ public class AppInfo {
         return urlToRead;
     }
 
+    public static String getJoinCodeUrl(Context context, String joincode) {
+        try {
+            joincode = URLEncoder.encode(joincode, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            Log.e(TAG, "Failed to encode join code", e);
+        }
+        String urlToRead = String.format("https://www.bearware.dk/teamtalk/tt5servers.php?action=joincode&joincode=%s&%s",
+                joincode, getDefautlUrlArgs(context));
+        return urlToRead;
+    }
 }

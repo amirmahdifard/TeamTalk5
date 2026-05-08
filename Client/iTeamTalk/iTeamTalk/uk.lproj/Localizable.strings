@@ -170,6 +170,9 @@
 "Connection lost" = "Зв’язок втрачено";
 
 /* server entry */
+"Copy" = "Copy";
+
+/* server entry */
 "Country" = "Країна";
 
 /* View Title */
@@ -208,6 +211,9 @@
 
 /* server entry */
 "Encrypted" = "Зашифровано";
+
+/* serverlist */
+"Enter Join Code" = "Enter Join Code";
 
 /* Dialog message */
 "Enter Password" = "Введіть пароль";
@@ -269,6 +275,9 @@
 
 /* channel list */
 "Join channel" = "Приєднатися до каналу";
+
+/* server entry */
+"Join Code: %@" = "Join Code: %@";
 
 /* preferences */
 "Join Root Channel" = "Приєднатися до кореневого каналу";
@@ -373,6 +382,9 @@
 
 /* channel list */
 "No password" = "Без пароля";
+
+/* serverlist */
+"No server found" = "No server found";
 
 /* create channel */
 "No Voice Activation" = "Без активації голосом";
@@ -623,6 +635,9 @@
 
 /* preferences */
 "Turn off screen when holding phone near ear" = "Вимикати екран, коли телефон біля вуха";
+
+/* serverlist */
+"Type Join Code" = "Type Join Code";
 
 /* text field hint
    text message */

@@ -13,6 +13,7 @@ Server
 
 Version 5.23, 2026/10/03
 Default Qt Client
+- Ability to filter servers by country code
 - Replaced Tolk with Prism for screen reader support
 - Screen reader backend can now be selected in Preferences dialog (e.g. NVDA, JAWS, SAPI, UIA, Orca)
 - Added screen reader support on Linux via Speech Dispatcher and Orca

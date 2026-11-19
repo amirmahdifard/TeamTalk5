@@ -206,13 +206,10 @@ public class UserPropActivity extends AppCompatActivity implements TeamTalkConne
             public void onProgressChanged(SeekBar seekBar, int progress,
                 boolean fromUser) {
                 if(seekBar == voiceVol) {
-                    getClient().setUserVolume(user.nUserID,
-                        StreamType.STREAMTYPE_VOICE, Utils.refVolume(progress));
+                    getClient().setUserVolume(user.nUserID, StreamType.STREAMTYPE_VOICE, Utils.refVolume(progress));
                 }
                 else if(seekBar == mediaVol) {
-                    getClient().setUserVolume(user.nUserID,
-                        StreamType.STREAMTYPE_MEDIAFILE_AUDIO,
-                        Utils.refVolume(progress));
+                    getClient().setUserVolume(user.nUserID, StreamType.STREAMTYPE_MEDIAFILE_AUDIO, Utils.refVolume(progress));
                 }
                 getClient().pumpMessage(ClientEvent.CLIENTEVENT_USER_STATECHANGE, user.nUserID);
             }
@@ -246,8 +243,7 @@ public class UserPropActivity extends AppCompatActivity implements TeamTalkConne
                 getClient().pumpMessage(ClientEvent.CLIENTEVENT_USER_STATECHANGE, user.nUserID);
             }
             else if(btn == voiceMuteLeft || btn == voiceMuteRight) {
-                getClient().setUserStereo(user.nUserID, StreamType.STREAMTYPE_VOICE, 
-                                          !voiceMuteLeft.isChecked(), !voiceMuteRight.isChecked());
+                getClient().setUserStereo(user.nUserID, StreamType.STREAMTYPE_VOICE, !voiceMuteLeft.isChecked(), !voiceMuteRight.isChecked());
                 getClient().pumpMessage(ClientEvent.CLIENTEVENT_USER_STATECHANGE, user.nUserID);
             }
             else if(btn == mediaMute) {
@@ -255,8 +251,7 @@ public class UserPropActivity extends AppCompatActivity implements TeamTalkConne
                 getClient().pumpMessage(ClientEvent.CLIENTEVENT_USER_STATECHANGE, user.nUserID);
             }
             else if(btn == mediaMuteLeft || btn == mediaMuteRight) {
-                getClient().setUserStereo(user.nUserID, StreamType.STREAMTYPE_MEDIAFILE_AUDIO, 
-                                          !mediaMuteLeft.isChecked(), !mediaMuteRight.isChecked());
+                getClient().setUserStereo(user.nUserID, StreamType.STREAMTYPE_MEDIAFILE_AUDIO, !mediaMuteLeft.isChecked(), !mediaMuteRight.isChecked());
                 getClient().pumpMessage(ClientEvent.CLIENTEVENT_USER_STATECHANGE, user.nUserID);
             }
             else if(btn == subscribeTxtmsg)
